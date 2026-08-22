@@ -29,7 +29,11 @@ class ConfigurationError(AtlasError, ValueError):
     """Raised on invalid system configuration or security violation."""
 
 
-class DataHealthError(AtlasError):
+class DataError(AtlasError):
+    """Base exception for all data retrieval, parsing, or provider errors."""
+
+
+class DataHealthError(DataError):
     """Raised on critical data validation or integrity failures."""
 
 
