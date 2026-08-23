@@ -1,0 +1,59 @@
+name: swing_meanrev_l3
+family: swing_meanrev
+version: "3.0.0"
+parent_id: "swing_meanrev_l2"
+bucket: SWING
+author: system
+description: "L3 enhanced: LightGBM ML predictor + L3 Fundamental Quality/Surprise + RSI Mean Reversion"
+
+universe:
+  min_adv_usd: 10000000.0
+  min_price: 10.0
+  exclude_otc: true
+  symbols: []
+
+rebalance:
+  schedule: daily_close
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: l2_lightgbm
+    weight: 0.40
+    params:
+      model_id: "lgbm_dir_5d_v1"
+      model_version: "1.0.0"
+  - provider: l3_val_quality
+    weight: 0.30
+    params:
+      min_roic: 0.05
+      max_accrual_ratio: 0.08
+      min_fcf_yield: 0.01
+      max_ev_ebitda: 30.0
+  - provider: l1_rsi
+    weight: 0.30
+    params:
+      period: 2
+      oversold: 15.0
+      overbought: 85.0
+      mode: mean_reversion
+
+aggregator:
+  type: weighted_confidence
+  min_confidence: 0.20
+
+policy:
+  type: threshold_long_only
+  n: 8
+  enter_threshold: 0.25
+  exit_threshold: -0.10
+  max_position_pct: 0.125
+
+stop:
+  type: atr_trailing
+  atr_period: 10
+  multiple: 2.0
+
+costs:
+  model: default_v1
+  k: 1.0
+  broker: alpaca

@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 from atlas.core.config import get_settings
 from atlas.core.types import Bar, Symbol
 from atlas.data.ingest import DataIngestPipeline
-from atlas.data.models import Bar1D
+from atlas.data.models import Bar1D, NewsArticle
 from atlas.data.providers.alpaca import AlpacaMarketDataProvider
+from atlas.data.providers.alpaca_news import AlpacaNewsProvider
 from atlas.data.providers.base import BaseDataProvider
 from atlas.data.providers.tiingo import TiingoProvider
 from atlas.data.providers.yfinance import YFinanceProvider
@@ -100,6 +101,70 @@ def handle_snapshot(args: argparse.Namespace) -> None:
     )
 
 
+async def handle_ingest_news(args: argparse.Namespace) -> None:
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    symbols = [Symbol(s.strip().upper()) for s in args.symbols.split(",")] if args.symbols else None
+    days = int(args.days)
+    end_dt = datetime.now(UTC)
+    start_dt = end_dt - timedelta(days=days)
+
+    provider = AlpacaNewsProvider()
+    logger.info("Fetching news from Alpaca for symbols: %s (last %d days)", symbols, days)
+    raw_articles = await provider.fetch_news(
+        symbols=symbols,
+        start=start_dt,
+        end=end_dt,
+        limit=int(args.limit),
+        include_content=True,
+    )
+
+    logger.info("Received %d raw articles from Alpaca", len(raw_articles))
+    session = None if args.dry_run else get_db_session()
+
+    ingested_count = 0
+    duplicate_count = 0
+
+    for raw in raw_articles:
+        norm = provider.normalize_article(raw)
+        if session:
+            # Check for existing article by content_hash or id
+            existing = session.scalar(
+                select(NewsArticle).where(
+                    (NewsArticle.content_hash == norm["content_hash"])
+                    | (NewsArticle.id == norm["id"])
+                )
+            )
+            if existing:
+                duplicate_count += 1
+                continue
+
+            article = NewsArticle(
+                id=norm["id"],
+                source=norm["source"],
+                url=norm["url"],
+                title=norm["title"],
+                summary=norm["summary"],
+                content=norm["content"],
+                published_at=norm["published_at"],
+                symbols=json.dumps([str(s) for s in norm["symbols"]]),
+                content_hash=norm["content_hash"],
+            )
+            session.add(article)
+            ingested_count += 1
+
+    if session:
+        session.commit()
+        session.close()
+
+    logger.info(
+        "News ingestion complete: %d inserted, %d duplicates skipped",
+        ingested_count,
+        duplicate_count,
+    )
+
+
 def handle_coverage(args: argparse.Namespace) -> None:
     _ = args
     session = get_db_session()
@@ -139,6 +204,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--date", default=date.today().isoformat(), help="Snapshot date (YYYY-MM-DD)"
     )
 
+    # Ingest News
+    news_p = subparsers.add_parser("ingest-news", help="Ingest financial news articles")
+    news_p.add_argument(
+        "--symbols", default="", help="Comma-separated symbols, e.g. AAPL,MSFT,NVDA"
+    )
+    news_p.add_argument("--days", type=int, default=30, help="Lookback window in days")
+    news_p.add_argument("--limit", type=int, default=50, help="Max articles per request")
+    news_p.add_argument("--dry-run", action="store_true", help="Do not persist to database")
+
     # Coverage
     subparsers.add_parser("coverage", help="Display symbol bar coverage matrix")
 
@@ -146,6 +220,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "ingest":
         asyncio.run(handle_ingest(args))
+    elif args.command == "ingest-news":
+        asyncio.run(handle_ingest_news(args))
     elif args.command == "snapshot":
         handle_snapshot(args)
     elif args.command == "coverage":

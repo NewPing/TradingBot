@@ -1,5 +1,33 @@
-"""API route routers."""
+"""FastAPI routers."""
 
-from atlas.api.routers import compare, health, runs, signals, trials, versions
+from __future__ import annotations
 
-__all__ = ["compare", "health", "runs", "signals", "trials", "versions"]
+from atlas.api.routers import (
+    compare,
+    fundamentals,
+    health,
+    live,
+    models,
+    news,
+    research,
+    risk,
+    runs,
+    signals,
+    trials,
+    versions,
+)
+
+__all__ = [
+    "compare",
+    "fundamentals",
+    "health",
+    "live",
+    "models",
+    "news",
+    "research",
+    "risk",
+    "runs",
+    "signals",
+    "trials",
+    "versions",
+]

@@ -210,29 +210,44 @@ class SimBroker:
         daily_vols: dict[Symbol, Decimal] | None = None,
         advs: dict[Symbol, Decimal] | None = None,
     ) -> list[Fill]:
-        """Check open positions for stop-loss breaches on bar t+1."""
+        """Check open positions for stop-loss breaches on bar t+1 (long and short)."""
         daily_vols = daily_vols or {}
         advs = advs or {}
         stop_fills: list[Fill] = []
 
         for symbol, pos in list(self._positions.items()):
-            if pos.qty <= 0 or pos.stop_px is None:
+            if pos.qty == 0 or pos.stop_px is None:
                 continue
 
             bar = current_bars.get(symbol)
             if bar is None:
                 continue
 
-            # For long positions: stop is breached if bar.low <= stop_px
-            if bar.low <= pos.stop_px:
-                # Overnight gap handling: if open < stop_px, fill at open, else at stop_px
-                base_price = bar.open if bar.open < pos.stop_px else pos.stop_px
+            breached = False
+            base_price = pos.stop_px
+            order_side = Side.SELL
+
+            if pos.qty > 0:
+                # Long position: stop breached if bar.low <= stop_px
+                if bar.low <= pos.stop_px:
+                    breached = True
+                    order_side = Side.SELL
+                    base_price = bar.open if bar.open < pos.stop_px else pos.stop_px
+            else:
+                # Short position (qty < 0): stop breached if bar.high >= stop_px
+                if bar.high >= pos.stop_px:
+                    breached = True
+                    order_side = Side.BUY
+                    base_price = bar.open if bar.open > pos.stop_px else pos.stop_px
+
+            if breached:
+                abs_qty = abs(pos.qty)
                 adv = advs.get(symbol, Decimal(bar.volume) * bar.close)
                 vol = daily_vols.get(symbol, Decimal("0.02"))
 
                 cost_res = self._cost_model.evaluate_fill(
-                    side=Side.SELL,
-                    qty=pos.qty,
+                    side=order_side,
+                    qty=abs_qty,
                     base_price=base_price,
                     adv_usd=adv,
                     daily_vol=vol,
@@ -242,11 +257,11 @@ class SimBroker:
                 fill = Fill(
                     order_id=stop_order_id,
                     ts=current_ts,
-                    qty=pos.qty,
+                    qty=abs_qty,
                     price=cost_res.fill_price,
                     commission=cost_res.commission,
                     fees=cost_res.regulatory_fees,
-                    slippage_est=Money(cost_res.slippage * Decimal(pos.qty), "USD"),
+                    slippage_est=Money(cost_res.slippage * Decimal(abs_qty), "USD"),
                     venue="SIM_STOP",
                 )
 
@@ -256,8 +271,8 @@ class SimBroker:
                     strategy_version_id="sim_strat",
                     bucket=pos.bucket,
                     symbol=symbol,
-                    side=Side.SELL,
-                    qty=pos.qty,
+                    side=order_side,
+                    qty=abs_qty,
                     type=OrderType.STOP,
                     tif=order_tif_day(),
                     created_ts=current_ts,
@@ -277,46 +292,88 @@ class SimBroker:
         existing_pos = self._positions.get(order.symbol)
 
         if order.side == Side.BUY:
-            # Deduct cash for purchase + commission + fees
-            total_cash_out = fill_notional + fill.commission + fill.fees
-            self._cash -= total_cash_out
-
-            if existing_pos is None or existing_pos.qty == 0:
-                self._positions[order.symbol] = Position(
-                    symbol=order.symbol,
-                    bucket=order.bucket,
-                    qty=fill.qty,
-                    avg_price=fill.price,
-                    opened_ts=fill.ts,
-                    unrealized=Money.zero("USD"),
-                    realized=Money.zero("USD"),
-                    stop_px=order.stop_px,
+            if existing_pos is not None and existing_pos.qty < 0:
+                # Covering short position
+                short_held = abs(existing_pos.qty)
+                cover_qty = min(short_held, fill.qty)
+                cover_outlay = (
+                    Money(Decimal(cover_qty) * fill.price, "USD") + fill.commission + fill.fees
                 )
+                self._cash -= cover_outlay
+
+                realized_pnl = (
+                    (existing_pos.avg_price - fill.price) * Decimal(cover_qty)
+                    - fill.commission.amount
+                    - fill.fees.amount
+                )
+                new_realized = existing_pos.realized + Money(realized_pnl, "USD")
+
+                remaining_short = short_held - cover_qty
+                if remaining_short == 0:
+                    del self._positions[order.symbol]
+                    excess_long = fill.qty - cover_qty
+                    if excess_long > 0:
+                        self._cash -= Money(Decimal(excess_long) * fill.price, "USD")
+                        self._positions[order.symbol] = Position(
+                            symbol=order.symbol,
+                            bucket=order.bucket,
+                            qty=excess_long,
+                            avg_price=fill.price,
+                            opened_ts=fill.ts,
+                            unrealized=Money.zero("USD"),
+                            realized=Money.zero("USD"),
+                            stop_px=order.stop_px,
+                        )
+                else:
+                    self._positions[order.symbol] = Position(
+                        symbol=order.symbol,
+                        bucket=existing_pos.bucket,
+                        qty=-remaining_short,
+                        avg_price=existing_pos.avg_price,
+                        opened_ts=existing_pos.opened_ts,
+                        unrealized=Money.zero("USD"),
+                        realized=new_realized,
+                        stop_px=order.stop_px or existing_pos.stop_px,
+                    )
             else:
-                # Add to existing position -> calculate weighted average price
-                old_qty = existing_pos.qty
-                new_qty = old_qty + fill.qty
-                total_cost = (Decimal(old_qty) * existing_pos.avg_price) + (
-                    Decimal(fill.qty) * fill.price
-                )
-                new_avg_px = total_cost / Decimal(new_qty)
+                # Long buy
+                total_cash_out = fill_notional + fill.commission + fill.fees
+                self._cash -= total_cash_out
 
-                self._positions[order.symbol] = Position(
-                    symbol=order.symbol,
-                    bucket=existing_pos.bucket,
-                    qty=new_qty,
-                    avg_price=new_avg_px,
-                    opened_ts=existing_pos.opened_ts,
-                    unrealized=existing_pos.unrealized,
-                    realized=existing_pos.realized,
-                    stop_px=order.stop_px or existing_pos.stop_px,
-                )
+                if existing_pos is None or existing_pos.qty == 0:
+                    self._positions[order.symbol] = Position(
+                        symbol=order.symbol,
+                        bucket=order.bucket,
+                        qty=fill.qty,
+                        avg_price=fill.price,
+                        opened_ts=fill.ts,
+                        unrealized=Money.zero("USD"),
+                        realized=Money.zero("USD"),
+                        stop_px=order.stop_px,
+                    )
+                else:
+                    old_qty = existing_pos.qty
+                    new_qty = old_qty + fill.qty
+                    total_cost = (Decimal(old_qty) * existing_pos.avg_price) + (
+                        Decimal(fill.qty) * fill.price
+                    )
+                    new_avg_px = total_cost / Decimal(new_qty)
+
+                    self._positions[order.symbol] = Position(
+                        symbol=order.symbol,
+                        bucket=existing_pos.bucket,
+                        qty=new_qty,
+                        avg_price=new_avg_px,
+                        opened_ts=existing_pos.opened_ts,
+                        unrealized=existing_pos.unrealized,
+                        realized=existing_pos.realized,
+                        stop_px=order.stop_px or existing_pos.stop_px,
+                    )
         else:  # SELL
-            # Add cash for proceeds minus commission and fees
-            proceeds = fill_notional - fill.commission - fill.fees
-            self._cash += proceeds
-
             if existing_pos is not None and existing_pos.qty > 0:
+                proceeds = fill_notional - fill.commission - fill.fees
+                self._cash += proceeds
+
                 sold_qty = min(existing_pos.qty, fill.qty)
                 cost_basis = Decimal(sold_qty) * existing_pos.avg_price
                 realized_pnl = (
@@ -330,6 +387,18 @@ class SimBroker:
                 remaining_qty = existing_pos.qty - sold_qty
                 if remaining_qty == 0:
                     del self._positions[order.symbol]
+                    excess_short = fill.qty - sold_qty
+                    if excess_short > 0:
+                        self._positions[order.symbol] = Position(
+                            symbol=order.symbol,
+                            bucket=order.bucket,
+                            qty=-excess_short,
+                            avg_price=fill.price,
+                            opened_ts=fill.ts,
+                            unrealized=Money.zero("USD"),
+                            realized=Money.zero("USD"),
+                            stop_px=order.stop_px,
+                        )
                 else:
                     self._positions[order.symbol] = Position(
                         symbol=order.symbol,
@@ -341,6 +410,41 @@ class SimBroker:
                         realized=new_realized,
                         stop_px=existing_pos.stop_px,
                     )
+            else:
+                # Open or add to short position
+                proceeds = fill_notional - fill.commission - fill.fees
+                self._cash += proceeds
+
+                if existing_pos is not None and existing_pos.qty < 0:
+                    old_short = abs(existing_pos.qty)
+                    new_short = old_short + fill.qty
+                    tot_val = (existing_pos.avg_price * Decimal(old_short)) + (
+                        fill.price * Decimal(fill.qty)
+                    )
+                    new_avg = tot_val / Decimal(new_short)
+                    self._positions[order.symbol] = Position(
+                        symbol=order.symbol,
+                        bucket=existing_pos.bucket,
+                        qty=-new_short,
+                        avg_price=new_avg,
+                        opened_ts=existing_pos.opened_ts,
+                        unrealized=Money.zero("USD"),
+                        realized=existing_pos.realized,
+                        stop_px=order.stop_px or existing_pos.stop_px,
+                    )
+                else:
+                    self._positions[order.symbol] = Position(
+                        symbol=order.symbol,
+                        bucket=order.bucket,
+                        qty=-fill.qty,
+                        avg_price=fill.price,
+                        opened_ts=fill.ts,
+                        unrealized=Money.zero("USD"),
+                        realized=Money.zero("USD"),
+                        stop_px=order.stop_px,
+                    )
+
+        self._fills.append(fill)
 
         self._fills.append(fill)
 

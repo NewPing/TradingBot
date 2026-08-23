@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from atlas.backtest.costs import DefaultCostModelV1
+if TYPE_CHECKING:
+    from atlas.backtest.costs import DefaultCostModelV1
 from atlas.portfolio.policies import (
     PositionPolicy,
     TargetWeightPolicy,
@@ -22,6 +23,19 @@ from atlas.signals.l1_technical import (
     RsiSignalProvider,
     TrendFilterSignalProvider,
     VolumeZScoreSignalProvider,
+)
+from atlas.signals.l2_statistical import (
+    CrossSectionalMomentumProvider,
+    LightGBMSignalProvider,
+    MarketRegimeSignalProvider,
+)
+from atlas.signals.l3_fundamental import (
+    EarningsSurpriseSignalProvider,
+    ValuationQualitySignalProvider,
+)
+from atlas.signals.l4_narrative import (
+    NarrativeMomentumSignalProvider,
+    NewsSentimentSignalProvider,
 )
 from atlas.strategies.spec import StrategySpec
 
@@ -73,6 +87,51 @@ def build_signal_provider(provider_name: str, params: dict[str, Any]) -> SignalP
             id=provider_name,
             period=int(params.get("period", 20)),
         )
+    elif name in ("l2_cs_momentum", "cs_momentum", "cross_sectional_momentum"):
+        return CrossSectionalMomentumProvider(
+            id=provider_name,
+            skip_bars=int(params.get("skip_bars", 21)),
+            lookback_bars=int(params.get("lookback_bars", 252)),
+        )
+    elif name in ("l2_market_regime", "market_regime", "regime_detector"):
+        return MarketRegimeSignalProvider(
+            id=provider_name,
+            benchmark=str(params.get("benchmark", "SPY")),
+        )
+    elif name in ("l2_lightgbm", "lightgbm", "lgbm_model"):
+        return LightGBMSignalProvider(
+            id=provider_name,
+            model_id=str(params.get("model_id", "lgbm_dir_5d_v1")),
+            model_version=str(params.get("model_version", "1.0.0")),
+        )
+    elif name in ("l3_val_quality", "val_quality", "fundamental_quality", "garp"):
+        return ValuationQualitySignalProvider(
+            id=provider_name,
+            min_roic=float(params.get("min_roic", 0.08)),
+            max_accrual_ratio=float(params.get("max_accrual_ratio", 0.05)),
+            min_fcf_yield=float(params.get("min_fcf_yield", 0.02)),
+            max_ev_ebitda=float(params.get("max_ev_ebitda", 25.0)),
+        )
+    elif name in ("l3_earnings_surprise", "earnings_surprise", "pead"):
+        return EarningsSurpriseSignalProvider(
+            id=provider_name,
+            lookback_days=int(params.get("lookback_days", 30)),
+        )
+    elif name in ("l4_news_sentiment", "news_sentiment", "llm_sentiment"):
+        return NewsSentimentSignalProvider(
+            id=provider_name,
+            lookback_hours=int(params.get("lookback_hours", 48)),
+            half_life_hours=float(params.get("half_life_hours", 18.0)),
+            min_relevance=float(params.get("min_relevance", 0.4)),
+            min_confidence=float(params.get("min_confidence", 0.5)),
+        )
+    elif name in ("l4_narrative_momentum", "narrative_momentum", "news_velocity"):
+        return NarrativeMomentumSignalProvider(
+            id=provider_name,
+            fast_lookback_hours=int(params.get("fast_lookback_hours", 24)),
+            slow_lookback_hours=int(params.get("slow_lookback_hours", 72)),
+            min_relevance=float(params.get("min_relevance", 0.3)),
+        )
     else:
         raise ValueError(f"Unknown signal provider: {provider_name}")
 
@@ -97,13 +156,21 @@ def build_position_policy(spec: StrategySpec) -> PositionPolicy:
             max_position_pct=Decimal(str(spec.policy.max_position_pct)),
             bucket=spec.bucket,
         )
-    elif pol_type in ("threshold_long_only", "threshold"):
+    elif pol_type in (
+        "threshold_long_only",
+        "threshold",
+        "threshold_long_short",
+        "threshold_short",
+    ):
         return ThresholdLongOnlyPolicy(
             enter_threshold=spec.policy.enter_threshold,
             exit_threshold=spec.policy.exit_threshold,
             max_positions=spec.policy.n,
             bucket=spec.bucket,
             max_position_pct=Decimal(str(spec.policy.max_position_pct)),
+            allow_short=bool(
+                spec.policy.allow_short or pol_type in ("threshold_long_short", "threshold_short")
+            ),
         )
     elif pol_type in ("target_weight", "weight"):
         return TargetWeightPolicy(
@@ -117,6 +184,8 @@ def build_position_policy(spec: StrategySpec) -> PositionPolicy:
 
 def build_cost_model(spec: StrategySpec) -> DefaultCostModelV1:
     """Build DefaultCostModelV1 from strategy spec."""
+    from atlas.backtest.costs import DefaultCostModelV1
+
     return DefaultCostModelV1(
         k=spec.costs.k,
         broker_commission_type=spec.costs.broker,

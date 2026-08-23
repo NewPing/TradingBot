@@ -103,13 +103,18 @@ class TopNLongOnlyPolicy:
 
 @dataclass(frozen=True, slots=True)
 class ThresholdLongOnlyPolicy:
-    """Hysteresis threshold policy: enters on score >= enter_threshold, exits on score <= exit_threshold."""
+    """Hysteresis threshold policy with optional shorting support for SWING bucket.
+
+    Enters long on score >= enter_threshold, exits long on score <= exit_threshold.
+    If allow_short is True: enters short on score <= -enter_threshold, exits short on score >= -exit_threshold.
+    """
 
     enter_threshold: float = 0.3
     exit_threshold: float = -0.1
     max_positions: int = 10
     bucket: BucketId = BucketId.SWING
     max_position_pct: Decimal = Decimal("0.10")
+    allow_short: bool = False
     sizing: SizingCalculator = field(default_factory=SizingCalculator)
 
     def generate_targets(
@@ -124,30 +129,37 @@ class ThresholdLongOnlyPolicy:
         _ = available_cash
         realized_vols = realized_vols or {}
         targets: dict[Symbol, Quantity] = {}
-        currently_held = {pos.symbol: pos for pos in current_positions if pos.qty > 0}
+        currently_held = {pos.symbol: pos for pos in current_positions if pos.qty != 0}
 
         # Check exits first
         for sym, pos in currently_held.items():
             sig = signals.get(sym)
-            if sig is None or sig.score <= self.exit_threshold:
-                targets[sym] = Quantity(0)
+            if pos.qty > 0:
+                # Long position exit
+                if sig is None or sig.score <= self.exit_threshold:
+                    targets[sym] = Quantity(0)
+                else:
+                    targets[sym] = Quantity(pos.qty)
             else:
-                # Maintain existing position
-                targets[sym] = Quantity(pos.qty)
+                # Short position exit
+                if sig is None or sig.score >= -self.exit_threshold:
+                    targets[sym] = Quantity(0)
+                else:
+                    targets[sym] = Quantity(pos.qty)
 
-        active_count = len([s for s, q in targets.items() if q > 0])
+        active_count = len([s for s, q in targets.items() if q != 0])
 
         # Check new entries
-        candidates = [
+        long_candidates = [
             (sym, sig)
             for sym, sig in signals.items()
             if sym not in currently_held
             and sig.score >= self.enter_threshold
             and current_prices.get(sym, Decimal("0")) > Decimal("0")
         ]
-        candidates.sort(key=lambda x: x[1].score, reverse=True)
+        long_candidates.sort(key=lambda x: x[1].score, reverse=True)
 
-        for sym, sig in candidates:
+        for sym, sig in long_candidates:
             if active_count >= self.max_positions:
                 break
             px = current_prices[sym]
@@ -165,7 +177,40 @@ class ThresholdLongOnlyPolicy:
                 targets[sym] = qty
                 active_count += 1
 
+        # Check short entries if enabled and in SWING bucket
+        if self.allow_short and self.bucket == BucketId.SWING:
+            short_candidates = [
+                (sym, sig)
+                for sym, sig in signals.items()
+                if sym not in currently_held
+                and sig.score <= -self.enter_threshold
+                and current_prices.get(sym, Decimal("0")) > Decimal("0")
+            ]
+            short_candidates.sort(key=lambda x: x[1].score)  # most negative first
+
+            for sym, sig in short_candidates:
+                if active_count >= self.max_positions:
+                    break
+                px = current_prices[sym]
+                vol = realized_vols.get(sym, Decimal("0.20"))
+                qty = self.sizing.calculate_quantity(
+                    bucket=self.bucket,
+                    bucket_equity=total_equity,
+                    price=px,
+                    composite_score=abs(sig.score),
+                    realized_vol_20d=vol,
+                    expected_n_positions=self.max_positions,
+                    max_position_pct=self.max_position_pct,
+                )
+                if qty > 0:
+                    targets[sym] = Quantity(-qty)
+                    active_count += 1
+
         return targets
+
+
+# Alias for explicitly named long/short policy
+ThresholdLongShortPolicy = ThresholdLongOnlyPolicy
 
 
 @dataclass(frozen=True, slots=True)

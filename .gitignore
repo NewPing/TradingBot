@@ -45,11 +45,11 @@ htmlcov/
 *.sqlite3
 
 # ATLAS Data & Snapshots
-data/raw/
-data/snapshots/
-data/artifacts/
+data/
+!data/.gitkeep
 *.parquet
 *.duckdb
+*.log
 
 # Next.js / Web
 web/.next/

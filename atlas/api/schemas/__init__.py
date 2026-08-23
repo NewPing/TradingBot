@@ -6,6 +6,21 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from atlas.api.schemas.fundamentals import (
+    EarningsEventResponse,
+    FundamentalScreenerItem,
+    FundamentalScreenerResponse,
+    FundamentalSnapshotResponse,
+)
+from atlas.api.schemas.news import (
+    NewsArticleDTO,
+    NewsFeedResponse,
+    NewsScoreDTO,
+    NewsStatsResponse,
+    PromptTemplateDTO,
+    ScoreNewsRequest,
+    SymbolSentimentResponse,
+)
 from atlas.api.schemas.runs import (
     CompareRequest,
     CompareResponse,
@@ -42,18 +57,29 @@ class VersionResponse(BaseModel):
 __all__ = [
     "CompareRequest",
     "CompareResponse",
+    "EarningsEventResponse",
     "EquityPointResponse",
+    "FundamentalScreenerItem",
+    "FundamentalScreenerResponse",
+    "FundamentalSnapshotResponse",
     "HealthResponse",
     "LineageNode",
     "LineageResponse",
+    "NewsArticleDTO",
+    "NewsFeedResponse",
+    "NewsScoreDTO",
+    "NewsStatsResponse",
+    "PromptTemplateDTO",
     "RunCreateRequest",
     "RunResponse",
     "RunTradeResponse",
+    "ScoreNewsRequest",
     "SignalExploreResponse",
     "SignalSeriesPoint",
     "StrategyStatusUpdate",
     "StrategyVersionCreate",
     "StrategyVersionResponse",
+    "SymbolSentimentResponse",
     "TrialBudgetResponse",
     "TrialResponse",
     "VersionResponse",

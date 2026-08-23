@@ -70,6 +70,13 @@ class DefaultCostModelV1:
 
         return Money(sec_fee + finra_fee, "USD")
 
+    def calculate_daily_borrow_fee(self, short_notional: Decimal) -> Money:
+        """Calculate 1-day borrow fee (3% annualized) for overnight short position notional."""
+        if short_notional <= Decimal("0"):
+            return Money.zero("USD")
+        daily_fee = (short_notional * self.borrow_rate_annual) / Decimal("252")
+        return Money(daily_fee, "USD")
+
     def calculate_half_spread(self, price: Decimal, adv_usd: Decimal) -> Decimal:
         """Calculate half-spread per share."""
         if adv_usd >= self.adv_high_threshold_usd:

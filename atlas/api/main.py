@@ -5,12 +5,26 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from atlas import __version__
-from atlas.api.routers import compare, health, runs, signals, trials, versions
+from atlas.api.routers import (
+    compare,
+    fundamentals,
+    health,
+    live,
+    models,
+    news,
+    research,
+    risk,
+    runs,
+    signals,
+    trials,
+    versions,
+)
+from atlas.api.ws import ws_manager
 from atlas.core.config import get_settings
 from atlas.core.logging import get_logger, setup_logging
 
@@ -30,6 +44,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
         from atlas.data.db import get_engine, get_session_factory
         from atlas.data.models import Base
+        from atlas.ml.bootstrap import bootstrap_default_lgbm_model
         from atlas.strategies.registry import StrategyVersionRegistry
 
         Base.metadata.create_all(get_engine())
@@ -37,8 +52,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         with factory() as session:
             reg = StrategyVersionRegistry(session)
             reg.sync_directory(Path("strategies"))
+
+        # Ensure default baseline ML model is ready
+        bootstrap_default_lgbm_model()
     except Exception as exc:
-        logger.warning(f"Database auto-init/sync notice: {exc}")
+        logger.warning(f"Database/Model auto-init notice: {exc}")
 
     yield
     logger.info("Stopping ATLAS API")
@@ -65,146 +83,231 @@ app.include_router(runs.router)
 app.include_router(compare.router)
 app.include_router(trials.router)
 app.include_router(signals.router)
+app.include_router(live.router)
+app.include_router(risk.router)
+app.include_router(models.router)
+app.include_router(fundamentals.router)
+app.include_router(news.router)
+app.include_router(research.router)
+
+
+@app.websocket("/api/v1/ws/live")
+async def websocket_live_endpoint(websocket: WebSocket) -> None:
+    """Real-time streaming endpoint for live runner events, fills, blotter, and alerts."""
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            # Keep-alive loop
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except Exception:
+        pass
+    finally:
+        ws_manager.disconnect(websocket)
 
 
 @app.get("/", response_class=HTMLResponse)
-async def root() -> str:
-    return f"""
-    <!DOCTYPE html>
-    <html lang="en">
-        <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>ATLAS Trading Engine API</title>
-            <style>
-                :root {{
-                    --bg: #0a0a0a;
-                    --bg-sidebar: #0d0d0d;
-                    --surface: #141414;
-                    --surface-2: #1c1c1c;
-                    --active: #1a1a1a;
-                    --border: #262626;
-                    --border-subtle: #1f1f1f;
-                    --text-1: #ededed;
-                    --text-2: #a1a1aa;
-                    --text-3: #71717a;
-                    --pos: #22c55e;
-                    --neg: #ef4444;
-                    --warn: #f59e0b;
-                    --info: #38bdf8;
-                }}
-                * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                    background-color: var(--bg);
-                    color: var(--text-1);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    padding: 1.5rem;
-                }}
-                .card {{
-                    background-color: var(--surface);
-                    border: 1px solid var(--border);
-                    border-radius: 8px;
-                    padding: 2.25rem;
-                    max-width: 520px;
-                    width: 100%;
-                    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-                }}
-                .badge-status {{
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    background-color: var(--surface-2);
-                    color: var(--pos);
-                    border: 1px solid var(--border);
-                    padding: 0.3rem 0.75rem;
-                    border-radius: 6px;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    letter-spacing: 0.05em;
-                    text-transform: uppercase;
-                    margin-bottom: 1.25rem;
-                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-                }}
-                .status-dot {{
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 50%;
-                    background-color: var(--pos);
-                    box-shadow: 0 0 8px var(--pos);
-                }}
-                h1 {{
-                    font-size: 1.5rem;
-                    font-weight: 600;
-                    letter-spacing: -0.02em;
-                    color: var(--text-1);
-                    margin-bottom: 0.5rem;
-                }}
-                p {{
-                    color: var(--text-2);
-                    font-size: 0.925rem;
-                    line-height: 1.55;
-                    margin-bottom: 1.5rem;
-                }}
-                .meta-label {{
-                    font-size: 0.7rem;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                    color: var(--text-3);
-                    margin-bottom: 0.75rem;
-                    font-weight: 600;
-                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-                }}
-                ul {{ list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }}
-                a {{
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 0.75rem 1rem;
-                    background-color: var(--surface-2);
-                    color: var(--text-1);
-                    text-decoration: none;
-                    border: 1px solid var(--border);
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-                    transition: all 0.15s ease-in-out;
-                }}
-                a:hover {{
-                    background-color: var(--active);
-                    border-color: var(--pos);
-                    color: var(--text-1);
-                }}
-                a .arrow {{
-                    color: var(--text-3);
-                    font-size: 0.8rem;
-                    transition: transform 0.15s ease-in-out;
-                }}
-                a:hover .arrow {{
-                    color: var(--pos);
-                    transform: translateX(3px);
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <div class="badge-status">
-                    <span class="status-dot"></span>
-                    <span>System Online · Port 8001</span>
-                </div>
-                <h1>ATLAS Engine API v{__version__}</h1>
-                <p>Autonomous Trading &amp; Learning Analysis System backend service.</p>
-                <div class="meta-label">Developer Endpoints</div>
-                <ul>
-                    <li><a href="/docs"><span>Interactive Swagger UI (/docs)</span><span class="arrow">&rarr;</span></a></li>
-                    <li><a href="/health"><span>System Health Check JSON (/health)</span><span class="arrow">&rarr;</span></a></li>
-                    <li><a href="/version"><span>System Version Info JSON (/version)</span><span class="arrow">&rarr;</span></a></li>
-                </ul>
-            </div>
-        </body>
-    </html>
-    """
+def root_status_page() -> str:
+    """Developer / Terminal Dark Theme API Root Splash Page."""
+    settings = get_settings()
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATLAS Engine API v{__version__}</title>
+  <style>
+    :root {{
+      --bg: #0a0a0a;
+      --bg-sidebar: #0d0d0d;
+      --surface: #141414;
+      --surface-2: #1c1c1c;
+      --border: #262626;
+      --border-subtle: #1f1f1f;
+      --text-1: #ededed;
+      --text-2: #a1a1aa;
+      --text-3: #71717a;
+      --pos: #22c55e;
+      --neg: #ef4444;
+      --warn: #f59e0b;
+      --info: #38bdf8;
+      --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }}
+    * {{
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }}
+    body {{
+      background-color: var(--bg);
+      color: var(--text-1);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 32px;
+      -webkit-font-smoothing: antialiased;
+    }}
+    .container {{
+      max-width: 860px;
+      margin: 0 auto;
+    }}
+    header {{
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }}
+    h1 {{
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-1);
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+    }}
+    .dot {{
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--pos);
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }}
+    .card {{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 16px;
+    }}
+    .card-title {{
+      color: var(--text-3);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }}
+    .card-value {{
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-1);
+    }}
+    .routes {{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 20px;
+    }}
+    .routes-title {{
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 6px;
+    }}
+    ul {{
+      list-style: none;
+    }}
+    li {{
+      padding: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+    }}
+    li:last-child {{
+      border-bottom: none;
+    }}
+    a {{
+      color: var(--info);
+      text-decoration: none;
+    }}
+    a:hover {{
+      text-decoration: underline;
+    }}
+    .method {{
+      color: var(--text-3);
+      font-size: 11px;
+    }}
+    footer {{
+      margin-top: 32px;
+      font-size: 11px;
+      color: var(--text-3);
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 16px;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>ATLAS Engine API</h1>
+        <div style="color: var(--text-3); font-size: 12px; margin-top: 4px;">Autonomous Quantitative Trading & Risk Daemon</div>
+      </div>
+      <div class="badge">
+        <span class="dot"></span>
+        <span>ONLINE</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">Version & Engine</div>
+        <div class="card-value">v{__version__} · Python 3.12</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Environment & Gate</div>
+        <div class="card-value">{settings.atlas_env.upper()} · LIVE={str(settings.atlas_allow_live).upper()}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Storage Backend</div>
+        <div class="card-value">TimescaleDB + Redis + Parquet</div>
+      </div>
+    </div>
+
+    <div class="routes">
+      <div class="routes-title">CORE API ENDPOINTS</div>
+      <ul>
+        <li><a href="/docs">/docs (Interactive Swagger UI)</a><span class="method">UI</span></li>
+        <li><a href="/health">/health</a><span class="method">GET</span></li>
+        <li><a href="/api/v1/versions">/api/v1/versions</a><span class="method">GET, POST</span></li>
+        <li><a href="/api/v1/runs">/api/v1/runs</a><span class="method">GET, POST</span></li>
+        <li><a href="/api/v1/compare">/api/v1/compare</a><span class="method">GET, POST</span></li>
+        <li><a href="/api/v1/trials">/api/v1/trials</a><span class="method">GET</span></li>
+        <li><a href="/api/v1/signals/explore?symbol=SPY">/api/v1/signals/explore</a><span class="method">GET</span></li>
+        <li><a href="/api/v1/live/state">/api/v1/live/state</a><span class="method">GET</span></li>
+        <li><a href="/api/v1/risk/status">/api/v1/risk/status</a><span class="method">GET, POST</span></li>
+        <li><a href="/api/v1/models">/api/v1/models</a><span class="method">GET</span></li>
+        <li><a href="/api/v1/models/regime/current">/api/v1/models/regime/current</a><span class="method">GET</span></li>
+        <li><a href="/api/v1/research/status">/api/v1/research/status</a><span class="method">GET, POST</span></li>
+        <li><a href="/api/v1/research/reports">/api/v1/research/reports</a><span class="method">GET</span></li>
+        <li><span>/api/v1/ws/live</span><span class="method">WSS</span></li>
+      </ul>
+    </div>
+
+    <footer>
+      <span>ATLAS v{__version__}</span>
+      <span>Strict UTC · Invariant-Checked</span>
+    </footer>
+  </div>
+</body>
+</html>
+"""

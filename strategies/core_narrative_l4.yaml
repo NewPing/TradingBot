@@ -1,0 +1,80 @@
+name: "core_narrative_l4"
+family: "core_trend"
+version: "4.0.0"
+parent_id: "core_trend:3.0.0"
+bucket: "CORE"
+author: "atlas"
+description: "Core multi-layer strategy combining L1 Trend & Momentum, L2 Cross-Sectional & LightGBM, L3 Quality/Valuation GARP, and L4 LLM News Sentiment confirmation."
+
+universe:
+  type: "top_market_cap"
+  n: 50
+  min_price: 10.0
+  min_adv_usd: 10000000.0
+
+rebalance:
+  frequency: "weekly_monday"
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: "l1_trend_filter"
+    weight: 0.15
+    params:
+      ma_period: 200
+      ma_type: "sma"
+
+  - provider: "l1_momentum"
+    weight: 0.15
+    params:
+      lookback: 252
+      skip: 21
+
+  - provider: "l2_cs_momentum"
+    weight: 0.15
+    params:
+      lookback_bars: 252
+      skip_bars: 21
+
+  - provider: "l2_lightgbm"
+    weight: 0.15
+    params:
+      model_id: "lgbm_dir_5d_v1"
+      model_version: "1.0.0"
+
+  - provider: "l3_val_quality"
+    weight: 0.20
+    params:
+      min_roic: 0.08
+      max_accrual_ratio: 0.05
+      min_fcf_yield: 0.02
+      max_ev_ebitda: 25.0
+
+  - provider: "l4_news_sentiment"
+    weight: 0.20
+    params:
+      lookback_hours: 48
+      half_life_hours: 18.0
+      min_relevance: 0.4
+      min_confidence: 0.5
+
+aggregator:
+  type: "weighted_confidence"
+  min_confidence: 0.40
+
+policy:
+  type: "top_n_long_only"
+  n: 5
+  min_score: 0.25
+  weight_by: "inverse_vol"
+  max_position_pct: 0.20
+
+stop:
+  type: "atr_trailing"
+  atr_period: 14
+  multiple: 3.0
+  pct: 0.25
+
+costs:
+  model: "default_v1"
+  k: 1.0
+  broker: "alpaca"

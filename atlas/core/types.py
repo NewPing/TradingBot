@@ -204,7 +204,7 @@ class AccountState:
 
 @dataclass(frozen=True, slots=True)
 class NewsItem:
-    """Point-in-time published news item."""
+    """Point-in-time published news item with optional LLM narrative scores."""
 
     id: str
     ts: datetime
@@ -213,6 +213,16 @@ class NewsItem:
     title: str
     body: str
     url: str
+    sentiment_score: float | None = None
+    relevance_score: float | None = None
+    novelty_score: float | None = None
+    impact: str | None = None
+    confidence: float | None = None
+    rationale: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.ts.tzinfo is None:
+            raise ValueError("NewsItem timestamp must be timezone-aware UTC")
 
 
 @dataclass(frozen=True, slots=True)

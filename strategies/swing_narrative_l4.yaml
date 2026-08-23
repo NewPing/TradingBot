@@ -1,0 +1,73 @@
+name: "swing_narrative_l4"
+family: "swing_meanrev"
+version: "4.0.0"
+parent_id: "swing_meanrev:3.0.0"
+bucket: "SWING"
+author: "atlas"
+description: "Swing long/short multi-layer strategy combining L1 RSI/Bollinger, L2 Market Regimes, L3 Earnings Surprises, and L4 Narrative Momentum with shorting capability."
+
+universe:
+  type: "top_market_cap"
+  n: 30
+  min_price: 15.0
+  min_adv_usd: 15000000.0
+
+rebalance:
+  frequency: "daily"
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: "l1_rsi"
+    weight: 0.20
+    params:
+      period: 2
+      oversold: 10.0
+      overbought: 90.0
+      mode: "mean_reversion"
+
+  - provider: "l1_bollinger"
+    weight: 0.15
+    params:
+      period: 20
+      num_std: 2.0
+      mode: "mean_reversion"
+
+  - provider: "l2_market_regime"
+    weight: 0.15
+    params:
+      benchmark: "SPY"
+
+  - provider: "l3_earnings_surprise"
+    weight: 0.25
+    params:
+      lookback_days: 30
+
+  - provider: "l4_narrative_momentum"
+    weight: 0.25
+    params:
+      fast_lookback_hours: 24
+      slow_lookback_hours: 72
+      min_relevance: 0.3
+
+aggregator:
+  type: "weighted_confidence"
+  min_confidence: 0.35
+
+policy:
+  type: "threshold_long_short"
+  n: 8
+  enter_threshold: 0.30
+  exit_threshold: -0.10
+  max_position_pct: 0.12
+  allow_short: true
+
+stop:
+  type: "hard_pct"
+  atr_period: 14
+  multiple: 2.0
+  pct: 0.08
+
+costs:
+  model: "default_v1"
+  k: 1.0
+  broker: "alpaca"

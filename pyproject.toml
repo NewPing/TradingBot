@@ -60,7 +60,7 @@ select = [
     "SIM", # flake8-simplify
     "PTH", # flake8-use-pathlib
 ]
-ignore = ["E501"]
+ignore = ["E501", "B008"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["atlas"]
@@ -86,6 +86,12 @@ module = [
     "exchange_calendars.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

@@ -51,3 +51,15 @@ class StrategyVersionNotFoundError(AtlasError, KeyError):
 
 class RunNotFoundError(AtlasError, KeyError):
     """Raised when a requested backtest/paper/live execution run cannot be found."""
+
+
+class InsufficientCashError(AtlasError, ValueError):
+    """Raised when a bucket has insufficient isolated cash to execute a trade."""
+
+
+class RiskLimitExceededError(AtlasError, ValueError):
+    """Raised when an order or portfolio state violates hard risk limits."""
+
+
+class BucketLimitExceededError(AtlasError, ValueError):
+    """Raised when an order exceeds bucket-level capacity or concentration limits."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
 
@@ -38,6 +38,10 @@ class MarketContext(Protocol):
 
     def fundamentals(self, symbol: Symbol) -> FundamentalSnapshot | None:
         """Return latest fundamental filing with filing_date <= clock.now."""
+        ...
+
+    def upcoming_earnings(self, symbol: Symbol, lookahead_days: int = 5) -> datetime | None:
+        """Return next scheduled earnings announcement within lookahead_days from clock.now."""
         ...
 
     def news(self, symbol: Symbol, lookback_hours: int = 24) -> list[NewsItem]:
@@ -77,9 +81,15 @@ class HistoricalMarketContext(BaseMarketContext):
         clock: Clock,
         bars_df: pl.DataFrame | dict[Symbol, pl.DataFrame],
         universe_map: dict[datetime, list[Symbol]] | None = None,
+        fundamentals_map: dict[Symbol, list[FundamentalSnapshot]] | None = None,
+        earnings_calendar_map: dict[Symbol, list[datetime]] | None = None,
+        news_map: dict[Symbol, list[NewsItem]] | None = None,
     ) -> None:
         super().__init__(clock)
         self._universe_map = universe_map or {}
+        self._fundamentals_map = fundamentals_map or {}
+        self._earnings_calendar_map = earnings_calendar_map or {}
+        self._news_map = news_map or {}
         self._bars_by_symbol: dict[Symbol, pl.DataFrame] = {}
 
         if isinstance(bars_df, dict):
@@ -153,13 +163,43 @@ class HistoricalMarketContext(BaseMarketContext):
 
     def fundamentals(self, symbol: Symbol) -> FundamentalSnapshot | None:
         """Return latest fundamental filing with filing_date <= clock.now."""
-        _ = symbol
-        return None
+        filings = self._fundamentals_map.get(symbol)
+        if not filings:
+            return None
+
+        current_now = self.now
+        valid_filings = [f for f in filings if f.filing_date <= current_now]
+        if not valid_filings:
+            return None
+
+        return max(valid_filings, key=lambda f: f.filing_date)
+
+    def upcoming_earnings(self, symbol: Symbol, lookahead_days: int = 5) -> datetime | None:
+        """Return next scheduled earnings announcement within lookahead_days from clock.now."""
+        events = self._earnings_calendar_map.get(symbol)
+        if not events:
+            return None
+
+        current_now = self.now
+        window_end = current_now + timedelta(days=lookahead_days)
+        upcoming = [dt for dt in events if current_now <= dt <= window_end]
+        if not upcoming:
+            return None
+
+        return min(upcoming)
 
     def news(self, symbol: Symbol, lookback_hours: int = 24) -> list[NewsItem]:
-        """Return published news items with ts <= clock.now."""
-        _ = (symbol, lookback_hours)
-        return []
+        """Return published news items with ts <= clock.now within lookback window."""
+        items = self._news_map.get(symbol, [])
+        if not items:
+            return []
+
+        current_now = self.now
+        cutoff = current_now - timedelta(hours=lookback_hours)
+
+        valid_items = [item for item in items if cutoff <= item.ts <= current_now]
+        valid_items.sort(key=lambda x: x.ts, reverse=True)
+        return valid_items
 
     def calendar_is_open(self) -> bool:
         """Return True if exchange is open at clock.now."""

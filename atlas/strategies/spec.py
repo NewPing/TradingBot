@@ -46,6 +46,7 @@ class PolicyConfig(BaseModel):
     max_position_pct: float = 0.20
     enter_threshold: float = 0.3
     exit_threshold: float = -0.1
+    allow_short: bool = False
 
 
 class StopConfig(BaseModel):

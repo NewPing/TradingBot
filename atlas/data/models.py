@@ -287,3 +287,396 @@ class Trial(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
     )
+
+
+class OrderRecord(Base):
+    """Trading order persisted in system of record."""
+
+    __tablename__ = "orders"
+    __table_args__ = (
+        Index("ix_orders_run_id", "run_id"),
+        Index("ix_orders_symbol", "symbol"),
+        Index("ix_orders_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(64), ForeignKey("runs.id"), nullable=False)
+    strategy_version_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("strategy_versions.id"), nullable=False
+    )
+    bucket: Mapped[str] = mapped_column(String(32), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)  # BUY | SELL
+    qty: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    order_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    tif: Mapped[str] = mapped_column(String(16), nullable=False, default="DAY")
+    limit_px: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    stop_px: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="NEW")
+    broker_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class FillRecord(Base):
+    """Broker execution fill event record."""
+
+    __tablename__ = "fills"
+    __table_args__ = (
+        Index("ix_fills_order_id", "order_id"),
+        Index("ix_fills_ts", "ts"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    order_id: Mapped[str] = mapped_column(String(64), ForeignKey("orders.id"), nullable=False)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    qty: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    commission: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0")
+    )
+    fees: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    slippage_est: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0")
+    )
+    venue: Mapped[str] = mapped_column(String(32), nullable=False, default="ALPACA_PAPER")
+
+
+class PositionSnapshot(Base):
+    """Point-in-time snapshot of open positions."""
+
+    __tablename__ = "positions_snapshots"
+    __table_args__ = (Index("ix_positions_snapshots_run_id_ts", "run_id", "ts"),)
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    run_id: Mapped[str] = mapped_column(String(64), ForeignKey("runs.id"), nullable=False)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    bucket: Mapped[str] = mapped_column(String(32), nullable=False)
+    qty: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    avg_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    market_value: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    unrealized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+
+
+class KillSwitchEventRecord(Base):
+    """Audit log of all triggered and resolved kill switch incidents."""
+
+    __tablename__ = "kill_switch_events"
+    __table_args__ = (
+        Index("ix_kill_switch_events_ts", "ts"),
+        Index("ix_kill_switch_events_trigger", "trigger"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    trigger: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    auto_resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    resolved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FundamentalFiling(Base):
+    """Point-in-time fundamental filing record with SEC EDGAR filing timestamps."""
+
+    __tablename__ = "fundamentals_pit"
+    __table_args__ = (
+        Index("ix_fundamentals_pit_symbol_filing", "symbol", "filing_date"),
+        Index("ix_fundamentals_pit_filing_date", "filing_date"),
+        Index("ix_fundamentals_pit_symbol_report", "symbol", "report_date"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False)
+    filing_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period: Mapped[str] = mapped_column(String(16), nullable=False)  # Q1, Q2, Q3, Q4, FY
+    statement_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="INCOME_BALANCE_CASH"
+    )
+    metrics: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class EarningsEvent(Base):
+    """Scheduled and historical earnings announcement release record."""
+
+    __tablename__ = "earnings_events"
+    __table_args__ = (
+        Index("ix_earnings_events_symbol_date", "symbol", "event_date"),
+        Index("ix_earnings_events_event_date", "event_date"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_date: Mapped[date] = mapped_column(Date, nullable=False)
+    time_of_day: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="AMC"
+    )  # BMO | AMC | DURING
+    fiscal_period: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    eps_estimated: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    eps_actual: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    revenue_estimated: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    revenue_actual: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class NewsArticle(Base):
+    """Point-in-time financial news article ingested from providers."""
+
+    __tablename__ = "news_articles"
+    __table_args__ = (
+        Index("ix_news_articles_published_at", "published_at"),
+        Index("ix_news_articles_content_hash", "content_hash"),
+        Index("ix_news_articles_source", "source"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="alpaca_news")
+    url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    symbols: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON list of symbols
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+    scores: Mapped[list[NewsScore]] = relationship(
+        "NewsScore", back_populates="article", cascade="all, delete-orphan"
+    )
+
+
+class NewsScore(Base):
+    """Structured LLM sentiment and narrative score for a news article."""
+
+    __tablename__ = "news_scores"
+    __table_args__ = (
+        Index("ix_news_scores_article_id", "article_id"),
+        Index("ix_news_scores_prompt_version", "prompt_version"),
+        Index("ix_news_scores_scored_at", "scored_at"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    article_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("news_articles.id"), nullable=False
+    )
+    model_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    prompt_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    sentiment_score: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    relevance_score: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    horizon: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="SHORT_TERM"
+    )  # INTRADAY | SHORT_TERM | MEDIUM_TERM | LONG_TERM
+    novelty_score: Mapped[Decimal] = mapped_column(
+        Numeric(6, 4), nullable=False, default=Decimal("0.5")
+    )
+    impact: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="NEUTRAL"
+    )  # BULLISH | BEARISH | NEUTRAL
+    confidence: Mapped[Decimal] = mapped_column(
+        Numeric(6, 4), nullable=False, default=Decimal("0.8")
+    )
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    scored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    article: Mapped[NewsArticle] = relationship("NewsArticle", back_populates="scores")
+
+
+class PromptTemplate(Base):
+    """Versioned prompt template artifact for reproducible LLM inferences."""
+
+    __tablename__ = "prompt_templates"
+    __table_args__ = (
+        Index("ix_prompt_templates_name_version", "name", "version", unique=True),
+        Index("ix_prompt_templates_hash", "prompt_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    template_text: Mapped[str] = mapped_column(Text, nullable=False)
+    schema_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    prompt_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class ResearchHypothesis(Base):
+    """Generated research hypothesis or candidate strategy variant (Phase 8)."""
+
+    __tablename__ = "research_hypotheses"
+    __table_args__ = (
+        Index("ix_research_hypotheses_family", "family"),
+        Index("ix_research_hypotheses_status", "status"),
+        Index("ix_research_hypotheses_generator", "generator_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    family: Mapped[str] = mapped_column(String(64), nullable=False)
+    generator_type: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )  # PARAM_REFINEMENT | FEATURE_COMBO | REGIME_VARIANT | GENETIC_RECOMBINATION | MANUAL
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    base_spec_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    proposed_spec: Mapped[str] = mapped_column(Text, nullable=False)  # YAML or JSON
+    spec_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    prior_score: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), nullable=False, default=Decimal("0.0")
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="QUEUED"
+    )  # QUEUED | SWEEPING | GATED | VALIDATED | REJECTED | PROMOTED
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class ResearchSweep(Base):
+    """Parameter or feature exploration sweep batch record (Phase 8)."""
+
+    __tablename__ = "research_sweeps"
+    __table_args__ = (
+        Index("ix_research_sweeps_hypothesis_id", "hypothesis_id"),
+        Index("ix_research_sweeps_family", "family"),
+        Index("ix_research_sweeps_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    hypothesis_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("research_hypotheses.id"), nullable=True
+    )
+    family: Mapped[str] = mapped_column(String(64), nullable=False)
+    sweep_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="GRID"
+    )  # GRID | RANDOM | BAYESIAN | PERTURBATION
+    param_grid: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    total_combinations: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    completed_combinations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    best_candidate_params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    best_metric_name: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="sharpe_ratio"
+    )
+    best_metric_value: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="PENDING"
+    )  # PENDING | RUNNING | COMPLETED | FAILED
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ResearchReport(Base):
+    """Comprehensive statistical research report and candidate evaluation record (Phase 8)."""
+
+    __tablename__ = "research_reports"
+    __table_args__ = (
+        Index("ix_research_reports_hypothesis_id", "hypothesis_id"),
+        Index("ix_research_reports_family", "family"),
+        Index("ix_research_reports_verdict", "verdict"),
+        Index("ix_research_reports_human_decision", "human_decision"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    hypothesis_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("research_hypotheses.id"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    family: Mapped[str] = mapped_column(String(64), nullable=False)
+    strategy_spec_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    spec_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    train_metrics: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    val_metrics: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    gatekeeper_results: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    gatekeeper_passed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verdict: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="PENDING"
+    )  # PASSED | REJECTED_OVERFIT | REJECTED_CORRELATION | REJECTED_COST | REJECTED_SAMPLE | REJECTED_ROBUSTNESS | PROMOTED | REJECTED_MANUAL
+    report_markdown: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    human_decision: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="PENDING_REVIEW"
+    )  # PENDING_REVIEW | APPROVED | REJECTED
+    human_decision_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    human_decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class HoldoutAccessLog(Base):
+    """Audit log of any authorization and access to the locked Holdout partition."""
+
+    __tablename__ = "holdout_access_logs"
+    __table_args__ = (Index("ix_holdout_access_logs_family", "family"),)
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    family: Mapped[str] = mapped_column(String(64), nullable=False)
+    unlocked_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    unlocked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
