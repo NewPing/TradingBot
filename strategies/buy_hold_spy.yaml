@@ -1,0 +1,43 @@
+name: buy_hold_spy
+family: benchmarks
+version: "1.0.0"
+parent_id: null
+bucket: CORE
+author: benchmark
+description: "Buy and hold SPY baseline"
+
+universe:
+  min_adv_usd: 1000000.0
+  min_price: 1.0
+  exclude_otc: true
+  symbols:
+    - SPY
+
+rebalance:
+  schedule: buy_and_hold
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: l1_trend_filter
+    weight: 1.0
+    params:
+      ma_period: 1
+      ma_type: sma
+
+aggregator:
+  type: weighted_confidence
+  min_confidence: 0.0
+
+policy:
+  type: target_weight
+  n: 1
+  min_score: -1.0
+  max_position_pct: 1.0
+
+stop:
+  type: none
+
+costs:
+  model: default_v1
+  k: 0.0
+  broker: alpaca

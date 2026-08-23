@@ -1,0 +1,43 @@
+name: equal_weight_universe
+family: benchmarks
+version: "1.0.0"
+parent_id: null
+bucket: CORE
+author: benchmark
+description: "Equal weight benchmark across qualifying universe rebalanced monthly"
+
+universe:
+  min_adv_usd: 20000000.0
+  min_price: 5.0
+  exclude_otc: true
+  symbols: []
+
+rebalance:
+  schedule: monthly_last_trading_day
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: l1_trend_filter
+    weight: 1.0
+    params:
+      ma_period: 1
+      ma_type: sma
+
+aggregator:
+  type: weighted_confidence
+  min_confidence: 0.0
+
+policy:
+  type: top_n_long_only
+  n: 50
+  min_score: -1.0
+  weight_by: equal_weight
+  max_position_pct: 0.05
+
+stop:
+  type: none
+
+costs:
+  model: default_v1
+  k: 1.0
+  broker: alpaca

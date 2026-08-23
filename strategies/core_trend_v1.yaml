@@ -1,0 +1,50 @@
+name: core_trend_v1
+family: core_trend
+version: "1.0.0"
+parent_id: null
+bucket: CORE
+author: system
+description: "12-1m momentum + 200 SMA trend filter on liquid US universe"
+
+universe:
+  min_adv_usd: 20000000.0
+  min_price: 5.0
+  exclude_otc: true
+  symbols: []
+
+rebalance:
+  schedule: monthly_last_trading_day
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: l1_momentum
+    weight: 0.6
+    params:
+      lookback: 252
+      skip: 21
+  - provider: l1_trend_filter
+    weight: 0.4
+    params:
+      ma_period: 200
+      ma_type: sma
+
+aggregator:
+  type: weighted_confidence
+  min_confidence: 0.3
+
+policy:
+  type: top_n_long_only
+  n: 5
+  min_score: 0.2
+  weight_by: inverse_vol
+  max_position_pct: 0.20
+
+stop:
+  type: atr_trailing
+  atr_period: 14
+  multiple: 3.0
+
+costs:
+  model: default_v1
+  k: 1.0
+  broker: alpaca

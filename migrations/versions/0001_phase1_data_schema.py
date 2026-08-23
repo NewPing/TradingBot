@@ -1,22 +1,21 @@
 """Initial Phase 1 data schema with instruments, bars_1d, universe_snapshots, corporate_actions, and data_health.
 
 Revision ID: 0001_phase1_data_schema
-Revises: 
+Revises:
 Create Date: 2026-08-23 12:00:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_phase1_data_schema"
-down_revision: Union[str, Sequence[str], None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -54,10 +53,17 @@ def upgrade() -> None:
         sa.Column("low", sa.Numeric(precision=18, scale=4), nullable=False),
         sa.Column("close", sa.Numeric(precision=18, scale=4), nullable=False),
         sa.Column("volume", sa.BigInteger(), nullable=False),
-        sa.Column("adj_factor", sa.Numeric(precision=18, scale=8), nullable=False, server_default=sa.text("1.0")),
+        sa.Column(
+            "adj_factor",
+            sa.Numeric(precision=18, scale=8),
+            nullable=False,
+            server_default=sa.text("1.0"),
+        ),
         sa.Column("vwap", sa.Numeric(precision=18, scale=4), nullable=True),
         sa.Column("source", sa.String(length=32), nullable=False, server_default="tiingo"),
-        sa.Column("ingested_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "ingested_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.PrimaryKeyConstraint("symbol", "ts"),
     )
     op.create_index("ix_bars_1d_symbol_ts", "bars_1d", ["symbol", "ts"])
@@ -74,7 +80,9 @@ def upgrade() -> None:
         sa.Column("amount", sa.Numeric(precision=18, scale=4), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_corporate_actions_symbol_ex_date", "corporate_actions", ["symbol", "ex_date"])
+    op.create_index(
+        "ix_corporate_actions_symbol_ex_date", "corporate_actions", ["symbol", "ex_date"]
+    )
 
     # 5. data_health
     op.create_table(

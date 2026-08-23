@@ -16,8 +16,8 @@ from atlas.core.config import get_settings
 from atlas.core.types import Bar, Symbol
 from atlas.data.ingest import DataIngestPipeline
 from atlas.data.models import Bar1D
-from atlas.data.providers.base import BaseDataProvider
 from atlas.data.providers.alpaca import AlpacaMarketDataProvider
+from atlas.data.providers.base import BaseDataProvider
 from atlas.data.providers.tiingo import TiingoProvider
 from atlas.data.providers.yfinance import YFinanceProvider
 from atlas.data.snapshots import SnapshotManager
@@ -101,6 +101,7 @@ def handle_snapshot(args: argparse.Namespace) -> None:
 
 
 def handle_coverage(args: argparse.Namespace) -> None:
+    _ = args
     session = get_db_session()
     stmt = select(
         Bar1D.symbol,

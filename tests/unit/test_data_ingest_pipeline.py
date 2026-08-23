@@ -25,6 +25,7 @@ class MockDataProvider(BaseDataProvider):
         start_date: date,
         end_date: date,
     ) -> list[dict]:
+        _ = (symbol, start_date, end_date)
         return [
             {
                 "date": "2023-01-03T00:00:00.000Z",
@@ -43,6 +44,7 @@ class MockDataProvider(BaseDataProvider):
         start_date: date,
         end_date: date,
     ) -> list[dict]:
+        _ = (symbol, start_date, end_date)
         return []
 
 

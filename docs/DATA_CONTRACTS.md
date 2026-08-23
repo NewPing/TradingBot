@@ -5,42 +5,47 @@
 All frozen. `Money` wraps `Decimal` and strictly raises `TypeError` on `float` arithmetic.
 
 ```python
-Symbol      = NewType("Symbol", str)          # uppercase, exchange-normalized
-Money       # Decimal + currency, quantized to 4dp internally, 2dp for display
-Bar         # symbol, ts (bar CLOSE, UTC), open, high, low, close, volume,
-            # adj_factor, vwap|None, source, resolution
-Signal      # provider, layer, symbol, ts, score[-1..1], confidence[0..1],
-            # rationale: str, features: dict[str, float]
-Order       # id, run_id, strategy_version_id, bucket, symbol, side, qty,
-            # type(MARKET|LIMIT|STOP|STOP_LIMIT), tif, limit_px, stop_px,
-            # created_ts, status, tags
-Fill        # order_id, ts, qty, price, commission, fees, slippage_est, venue
-Position    # symbol, bucket, qty, avg_price, opened_ts, unrealized, realized, stop_px
-BucketId    # CORE | SWING | MOONSHOT | CASH   (enum)
-SignalLayer # L1_TECHNICAL | L2_STATISTICAL | L3_FUNDAMENTAL | L4_NARRATIVE
-RunMode     # BACKTEST | PAPER | SHADOW | LIVE
-RunStatus   # QUEUED | RUNNING | COMPLETED | FAILED | ABORTED
+Symbol = NewType("Symbol", str)  # uppercase, exchange-normalized
+Money  # Decimal + currency, quantized to 4dp internally, 2dp for display
+Bar  # symbol, ts (bar CLOSE, UTC), open, high, low, close, volume,
+# adj_factor, vwap|None, source, resolution
+Signal  # provider, layer, symbol, ts, score[-1..1], confidence[0..1],
+# rationale: str, features: dict[str, float]
+Order  # id, run_id, strategy_version_id, bucket, symbol, side, qty,
+# type(MARKET|LIMIT|STOP|STOP_LIMIT), tif, limit_px, stop_px,
+# created_ts, status, tags
+Fill  # order_id, ts, qty, price, commission, fees, slippage_est, venue
+Position  # symbol, bucket, qty, avg_price, opened_ts, unrealized, realized, stop_px
+BucketId  # CORE | SWING | MOONSHOT | CASH   (enum)
+SignalLayer  # L1_TECHNICAL | L2_STATISTICAL | L3_FUNDAMENTAL | L4_NARRATIVE
+RunMode  # BACKTEST | PAPER | SHADOW | LIVE
+RunStatus  # QUEUED | RUNNING | COMPLETED | FAILED | ABORTED
 ```
 
 ## 4.2 Interfaces (Protocols)
 
 ```python
 class MarketContext(Protocol):
-    now: datetime                                  # tz-aware UTC, set by Clock
+    now: datetime  # tz-aware UTC, set by Clock
+
     def bars(self, symbol: Symbol, lookback: int, resolution: str = "1d") -> pl.DataFrame: ...
     def latest(self, symbol: Symbol, resolution: str = "1d") -> Bar | None: ...
     def universe(self) -> list[Symbol]: ...
-    def fundamentals(self, symbol: Symbol) -> FundamentalSnapshot | None: ...   # point-in-time
+    def fundamentals(self, symbol: Symbol) -> FundamentalSnapshot | None: ...  # point-in-time
     def news(self, symbol: Symbol, lookback_hours: int) -> list[NewsItem]: ...  # point-in-time
     def calendar_is_open(self) -> bool: ...
+
     # Every method filters ts <= now. No exceptions. No escape hatch.
+
 
 class SignalProvider(Protocol):
     name: str
     version: str
     layer: SignalLayer
+
     def warmup_bars(self) -> int: ...
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None: ...
+
 
 class Broker(Protocol):
     def submit(self, order: Order) -> BrokerOrderRef: ...

@@ -1,0 +1,53 @@
+name: swing_meanrev_v1
+family: swing_meanrev
+version: "1.0.0"
+parent_id: null
+bucket: SWING
+author: system
+description: "RSI(2) < 10 mean-reversion above 200 SMA on S&P 500 liquid stocks"
+
+universe:
+  min_adv_usd: 15000000.0
+  min_price: 10.0
+  exclude_otc: true
+  symbols: []
+
+rebalance:
+  schedule: daily
+  time: "15:45 America/New_York"
+
+signals:
+  - provider: l1_rsi
+    weight: 0.7
+    params:
+      period: 2
+      oversold: 10.0
+      overbought: 90.0
+      mode: mean_reversion
+  - provider: l1_trend_filter
+    weight: 0.3
+    params:
+      ma_period: 200
+      ma_type: sma
+
+aggregator:
+  type: weighted_confidence
+  min_confidence: 0.3
+
+policy:
+  type: threshold_long_only
+  n: 10
+  min_score: 0.3
+  enter_threshold: 0.4
+  exit_threshold: -0.1
+  weight_by: inverse_vol
+  max_position_pct: 0.10
+
+stop:
+  type: hard_pct
+  pct: 0.05
+
+costs:
+  model: default_v1
+  k: 1.0
+  broker: alpaca

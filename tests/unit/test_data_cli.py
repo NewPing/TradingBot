@@ -33,23 +33,25 @@ async def test_cli_handle_ingest() -> None:
         issues_found=0,
     )
 
-    with patch(
-        "atlas.data.cli.DataIngestPipeline.ingest_symbol",
-        new=AsyncMock(return_value=([], [], mock_result)),
+    with (
+        patch(
+            "atlas.data.cli.DataIngestPipeline.ingest_symbol",
+            new=AsyncMock(return_value=([], [], mock_result)),
+        ),
+        patch("atlas.data.cli.get_db_session"),
     ):
-        with patch("atlas.data.cli.get_db_session"):
 
-            class Args:
-                symbols = "AAPL,MSFT"
-                start = "2023-01-01"
-                end = "2023-01-05"
-                provider = "tiingo"
-                dry_run = True
+        class Args:
+            symbols = "AAPL,MSFT"
+            start = "2023-01-01"
+            end = "2023-01-05"
+            provider = "tiingo"
+            dry_run = True
 
-            await handle_ingest(Args())
+        await handle_ingest(Args())
 
 
-def test_cli_handle_snapshot(tmp_path) -> None:
+def test_cli_handle_snapshot() -> None:
     class Args:
         date = "2023-01-05"
 

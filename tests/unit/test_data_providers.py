@@ -22,11 +22,13 @@ class DummyProvider(BaseDataProvider):
     async def fetch_daily_bars(
         self, symbol: Symbol, start_date: date, end_date: date
     ) -> list[dict]:
+        _ = (symbol, start_date, end_date)
         return []
 
     async def fetch_corporate_actions(
         self, symbol: Symbol, start_date: date, end_date: date
     ) -> list[dict]:
+        _ = (symbol, start_date, end_date)
         return []
 
     async def is_healthy(self) -> bool:
@@ -133,7 +135,7 @@ async def test_alpaca_provider_health_and_actions() -> None:
     provider = AlpacaMarketDataProvider(api_key_id="key", api_secret="secret")
     with patch.object(
         provider, "_request_with_retry", new=AsyncMock(return_value={"bars": [{"c": 100}]})
-    ) as mock_req:
+    ):
         healthy = await provider.is_healthy()
         assert healthy is True
 
