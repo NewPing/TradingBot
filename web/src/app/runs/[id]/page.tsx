@@ -345,7 +345,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             <span className="text-xs font-mono font-bold text-text-1 uppercase tracking-wider">
               {t("run_detail.frictional_costs_title")}
             </span>
-            <InfoTooltip content="Exact accounting of frictional costs (spreads, slippage, broker/SEC fees) and position holding duration." />
+            <InfoTooltip
+              title={t("run_detail.frictional_costs_title")}
+              content={t("tooltips.frictional_costs_desc")}
+            />
           </div>
           <span className="terminal-badge bg-surface-3 border-border text-[10px] text-text-2">
             DefaultCostModelV1 (Pessimistic)
@@ -356,7 +359,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <div className="p-3 bg-surface-2 rounded border border-border space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-3 uppercase">{t("run_detail.avg_holding_period")}</span>
-              <InfoTooltip content={t("run_detail.holding_period_desc")} />
+              <InfoTooltip
+                title={t("run_detail.avg_holding_period")}
+                content={t("run_detail.holding_period_desc")}
+              />
             </div>
             <div className="text-base font-bold text-text-1">
               {activeHorizon?.avg_holding_days || 42.4} Days <span className="text-xs font-normal text-text-3">(~{(((activeHorizon?.avg_holding_days || 42.4) / 21)).toFixed(1)} Months)</span>
@@ -370,7 +376,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <div className="p-3 bg-surface-2 rounded border border-border space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-3 uppercase">{t("run_detail.annual_turnover")}</span>
-              <InfoTooltip content="Annual portfolio turnover ratio. Low turnover (1.5x - 3.0x) minimizes frictional cost drag compared to day-trading (25x+)." />
+              <InfoTooltip
+                title={t("run_detail.annual_turnover")}
+                content={t("tooltips.turnover_desc")}
+              />
             </div>
             <div className="text-base font-bold text-text-1">
               {turnover > 0 ? `${(turnover * 100).toFixed(0)}%` : "215%"} <span className="text-xs font-normal text-text-3">({turnover > 0 ? turnover.toFixed(1) : "2.2"}x Capital/Yr)</span>
@@ -383,7 +392,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <div className="p-3 bg-surface-2 rounded border border-border space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-3 uppercase">{t("run_detail.gross_vs_net_profit")}</span>
-              <InfoTooltip content="Theoretical gross gain vs. actual net profit in your pocket after spreads, slippage, and regulatory fees." />
+              <InfoTooltip
+                title={t("run_detail.gross_vs_net_profit")}
+                content={t("tooltips.gross_vs_net_desc")}
+              />
             </div>
             <div className="text-sm font-bold text-pos truncate">
               +${(activeHorizon?.gross_profit_usd || (netProfit * 1.048)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} <span className="text-text-3">&rarr;</span> +${netProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -396,7 +408,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <div className="p-3 bg-surface-2 rounded border border-border space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-3 uppercase">{t("run_detail.frictional_drag_breakdown")}</span>
-              <InfoTooltip content="Breakdown of trading frictions: Square-root law market impact slippage, bid-ask half-spread, and regulatory fees." />
+              <InfoTooltip
+                title={t("run_detail.frictional_drag_breakdown")}
+                content={t("tooltips.frictional_breakdown_desc")}
+              />
             </div>
             <div className="text-xs font-bold text-text-1">
               Slip: ${(activeHorizon?.total_slippage_usd || 3200).toLocaleString(undefined, { maximumFractionDigits: 0 })} · Spread: ${(activeHorizon?.total_commissions_usd || 1150).toLocaleString(undefined, { maximumFractionDigits: 0 })}

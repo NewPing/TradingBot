@@ -198,7 +198,10 @@ export default function TaxesPage() {
         <div className="bg-surface border border-border rounded p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono text-text-3">{t("taxes.total_tax_liability")}</span>
-            <InfoTooltip content="Total statutory withholding: KESt (25%) + Solidaritätszuschlag (5.5% of KESt = 1.375%) + optional Kirchensteuer." />
+            <InfoTooltip
+              title={t("taxes.total_tax_liability")}
+              content={t("tooltips.tax_liability_desc")}
+            />
           </div>
           <div className="mt-2 text-xl font-bold font-mono text-neg">
             €{report ? report.total_tax_liability_eur.toLocaleString("de-DE", { minimumFractionDigits: 2 }) : "0,00"}
@@ -213,7 +216,10 @@ export default function TaxesPage() {
         <div className="bg-surface border border-border rounded p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono text-text-3">{t("taxes.net_taxable")}</span>
-            <InfoTooltip content="Realized capital gains after offsetting allowable losses and subtracting Sparerpauschbetrag allowance." />
+            <InfoTooltip
+              title={t("taxes.net_taxable")}
+              content={t("tooltips.net_taxable_desc")}
+            />
           </div>
           <div className="mt-2 text-xl font-bold font-mono text-pos">
             €{report ? report.net_taxable_income_eur.toLocaleString("de-DE", { minimumFractionDigits: 2 }) : "0,00"}
@@ -227,7 +233,10 @@ export default function TaxesPage() {
         <div className="bg-surface border border-border rounded p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono text-text-3">{t("taxes.effective_rate")}</span>
-            <InfoTooltip content="Effective percentage of net taxable capital gains paid in taxes (statutory rate 26.375%)." />
+            <InfoTooltip
+              title={t("taxes.effective_rate")}
+              content={t("tooltips.effective_rate_desc")}
+            />
           </div>
           <div className="mt-2 text-xl font-bold font-mono text-text-1">
             {report && report.net_taxable_income_eur > 0 ? `${report.effective_tax_rate_pct.toFixed(2)}%` : "0.00%"}
@@ -241,7 +250,10 @@ export default function TaxesPage() {
         <div className="bg-surface border border-border rounded p-3.5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono text-text-3">{t("taxes.sparerpauschbetrag")}</span>
-            <InfoTooltip content={t("taxes.sparerpauschbetrag_desc")} />
+            <InfoTooltip
+              title={t("taxes.sparerpauschbetrag")}
+              content={t("taxes.sparerpauschbetrag_desc")}
+            />
           </div>
           <div className="mt-2 text-xl font-bold font-mono text-text-1">
             €{report ? report.sparerpauschbetrag_used_eur.toFixed(2) : "0.00"} <span className="text-xs font-normal text-text-3">/ €{sparerpauschbetrag.toFixed(0)}</span>

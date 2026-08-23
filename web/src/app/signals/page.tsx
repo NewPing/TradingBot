@@ -95,8 +95,8 @@ export default function SignalsExplorerPage() {
               L1-L4
             </span>
             <InfoTooltip
-              title="Alpha Signals & Universe Intelligence"
-              content="Layer 1 through 4 quantitative signal computation, dynamic universe liquidity screening, and technical indicators executing strictly without lookahead."
+              title={t("tooltips.signals_title")}
+              content={t("tooltips.signals_desc")}
             />
           </div>
           <p className="text-xs text-text-2 font-mono mt-1">

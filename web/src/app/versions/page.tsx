@@ -247,8 +247,8 @@ export default function VersionsPage() {
                   <span className="inline-flex items-center">
                     {t("versions.col_parent_lineage")}
                     <InfoTooltip
-                      title={t("versions.parent_version")}
-                      content={t("versions.lineage_tree")}
+                      title={t("tooltips.parent_lineage_title")}
+                      content={t("tooltips.parent_lineage_desc")}
                     />
                   </span>
                 </th>

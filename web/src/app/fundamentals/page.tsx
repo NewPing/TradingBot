@@ -75,8 +75,8 @@ export default function FundamentalsPage() {
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-surface border border-border text-text-2 flex items-center gap-1">
               <span>{t("fundamentals.point_in_time_badge")}</span>
               <InfoTooltip
-                title="Point-in-Time (PIT) Filings"
-                content="Historical SEC 10-Q and 10-K financial reports indexed by their exact public filing timestamp, strictly eliminating future restatement lookahead bias."
+                title={t("tooltips.pit_filings_title")}
+                content={t("tooltips.pit_filings_desc")}
               />
             </span>
           </div>
@@ -384,7 +384,7 @@ export default function FundamentalsPage() {
                   <th className="pb-2">
                     <span className="inline-flex items-center">
                       {t("fundamentals.value_col")}
-                      <InfoTooltip title="GARP Valuation Score" content="Normalized composite valuation percentile based on EV/EBITDA, P/E, and FCF yield." />
+                      <InfoTooltip title={t("tooltips.garp_val_score_title")} content={t("tooltips.garp_val_score_desc")} />
                     </span>
                   </th>
                   <th className="pb-2">

@@ -183,7 +183,7 @@ export default function LivePaperTradingPage() {
               <span>{t("live.mode_alpaca_paper")}</span>
               <InfoTooltip
                 title={t("tooltips.parity_title")}
-                content="Alpaca Paper Trading environment. Connects to real-time market data with realistic t+1 execution discipline and zero capital risk."
+                content={t("tooltips.alpaca_paper_desc")}
               />
             </span>
           </div>
@@ -389,7 +389,10 @@ export default function LivePaperTradingPage() {
                     <th className="p-2.5 text-right">
                       <span className="inline-flex items-center justify-end w-full">
                         {t("live.col_stop")}
-                        <InfoTooltip title="Stop Loss Policy" content="Gap-aware trailing or fixed stop price managed automatically by SimBroker/OMS." />
+                        <InfoTooltip
+                          title={t("tooltips.stop_loss_title")}
+                          content={t("tooltips.stop_loss_desc")}
+                        />
                       </span>
                     </th>
                   </tr>
@@ -531,7 +534,10 @@ export default function LivePaperTradingPage() {
           <div className="flex items-center gap-2">
             <span className="terminal-label">{t("shadow.telemetry_title")}</span>
             <span className="terminal-badge border-pos/40 text-pos bg-pos/10 text-[10px]">IBKR Gateway / Shadow Sim</span>
-            <InfoTooltip content="Real-time quote latency, execution fill spread, and theoretical vs. live broker price divergence tracking." />
+            <InfoTooltip
+              title={t("shadow.title")}
+              content={t("tooltips.shadow_telemetry_desc")}
+            />
           </div>
         </div>
 

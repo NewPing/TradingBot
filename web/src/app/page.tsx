@@ -171,7 +171,7 @@ export default function OverviewPage() {
                   <th className="pb-2">
                     <span className="inline-flex items-center">
                       {t("common.version_abbr")}
-                      <InfoTooltip title={t("tooltips.spec_hash_title")} content={t("tooltips.strategy_versions_desc")} />
+                      <InfoTooltip title={t("tooltips.strategy_versions_title")} content={t("tooltips.strategy_versions_desc")} />
                     </span>
                   </th>
                   <th className="pb-2">

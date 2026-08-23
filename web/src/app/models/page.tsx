@@ -317,8 +317,8 @@ export default function ModelsAndRegimesPage() {
                     <div className="text-[10px] font-mono text-text-3 uppercase flex items-center justify-between">
                       <span>{t("models.cv_accuracy")}</span>
                       <InfoTooltip
-                        title="CV Directional Accuracy"
-                        content="Percentage of 5-day directional price moves correctly predicted across all purged out-of-fold validation windows."
+                        title={t("tooltips.cv_accuracy_title")}
+                        content={t("tooltips.cv_accuracy_desc")}
                       />
                     </div>
                     <div className="text-sm font-bold font-mono text-text-1 mt-1">
@@ -331,7 +331,7 @@ export default function ModelsAndRegimesPage() {
                       <span>{t("models.train_partition")}</span>
                       <InfoTooltip
                         title={t("tooltips.holdout_guard_title")}
-                        content="Historical training window used for fitting tree ensembles. Strictly isolated from the 2023–present holdout partition."
+                        content={t("tooltips.train_partition_desc")}
                       />
                     </div>
                     <div className="text-xs font-mono text-text-2 mt-1">
@@ -343,8 +343,8 @@ export default function ModelsAndRegimesPage() {
                     <div className="text-[10px] font-mono text-text-3 uppercase flex items-center justify-between">
                       <span>{t("models.features_lbl")}</span>
                       <InfoTooltip
-                        title={t("tooltips.feature_importance_title")}
-                        content="Number of statistical, cross-sectional, and technical inputs fed into the gradient boosted tree classifier."
+                        title={t("tooltips.feature_count_title")}
+                        content={t("tooltips.feature_count_desc")}
                       />
                     </div>
                     <div className="text-sm font-bold font-mono text-info mt-1">

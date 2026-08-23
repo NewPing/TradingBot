@@ -124,8 +124,8 @@ export default function NarrativePage() {
             <span className="text-text-3">{t("narrative.active_model")}</span>
             <span className="text-text-1 font-semibold">{stats?.llm_model || "Qwen3.8-27B-Q4"}</span>
             <InfoTooltip
-              title="Local LLM Inference"
-              content="Runs deterministic quantized model inference locally or via API with zero external network leakage and structured JSON validation."
+              title={t("tooltips.local_llm_title")}
+              content={t("tooltips.local_llm_desc")}
             />
           </div>
           <div className="bg-surface border border-border px-3 py-1.5 rounded flex items-center gap-2 text-xs font-mono">

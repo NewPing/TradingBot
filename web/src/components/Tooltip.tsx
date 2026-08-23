@@ -20,6 +20,10 @@ export function InfoTooltip({
 }: InfoTooltipProps) {
   const [visible, setVisible] = useState(false);
 
+  // Fallback text if content is somehow empty
+  const displayContent = content || title || "Information & Context";
+  const displayTitle = title && content ? title : undefined;
+
   // Position styles
   let positionClass = "bottom-full left-1/2 -translate-x-1/2 mb-2";
   if (side === "bottom") positionClass = "top-full left-1/2 -translate-x-1/2 mt-2";
@@ -42,15 +46,15 @@ export function InfoTooltip({
 
       {visible && (
         <span
-          className={`absolute z-50 w-64 p-2.5 bg-surface-2 border border-border text-text-1 text-[11px] font-sans font-normal normal-case leading-relaxed rounded-md shadow-2xl pointer-events-none transition-opacity ${positionClass}`}
+          className={`absolute z-[100] w-64 max-w-[85vw] p-2.5 bg-surface-2/95 backdrop-blur-md border border-border text-text-1 text-[11px] font-sans font-normal normal-case leading-relaxed rounded shadow-2xl pointer-events-none select-none transition-opacity ${positionClass}`}
           role="tooltip"
         >
-          {title && (
+          {displayTitle && (
             <span className="block font-mono font-semibold text-pos text-xs mb-1 uppercase tracking-wide">
-              {title}
+              {displayTitle}
             </span>
           )}
-          <span className="text-text-2">{content}</span>
+          <span className="text-text-2">{displayContent}</span>
         </span>
       )}
     </span>
