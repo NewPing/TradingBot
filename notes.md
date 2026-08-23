@@ -34,3 +34,13 @@
 - Created StrategySpec loader, spec hash calculation, and baseline strategy YAML files.
 - Built `BacktestEngine`, `PerformanceMetrics`, and CLI subcommands.
 - Verified all 106 tests, `mypy --strict`, `ruff check`, and `ruff format`.
+
+### 2026-08-23 — Session 4: Developer/Terminal Dark Re-Theme
+- Implemented semantic dark developer/terminal design token system:
+  - Surfaces: `--bg` (`#0a0a0a`), `--bg-sidebar` (`#0d0d0d`), `--surface` (`#141414`), `--surface-2` (`#1c1c1c`), `--active` (`#1a1a1a`).
+  - Borders: `--border` (`#262626`), `--border-subtle` (`#1f1f1f`).
+  - Text: `--text-1` (`#ededed`), `--text-2` (`#a1a1aa`), `--text-3` (`#71717a`).
+  - Trading Semantics: `--pos` (`#22c55e` primary accent / gains), `--neg` (`#ef4444` errors / losses), `--warn` (`#f59e0b`), `--info` (`#38bdf8`).
+- Updated FastAPI root HTML/CSS in `atlas/api/main.py` with custom CSS variables and terminal styling.
+- Documented Theme & Color System in `docs/ARCHITECTURE.md`, `docs/MASTER_PLAN.md`, and `README.md`.
+- Full verification passed (`ruff`, `mypy --strict`, `pytest`).

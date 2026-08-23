@@ -25,3 +25,13 @@
 - Implemented `BacktestEngine` with single-threaded §8.1 event loop, comprehensive `PerformanceMetrics` module in `atlas/backtest/metrics.py`, and CLI in `atlas/backtest/cli.py`.
 - Added 30+ new unit, property (`hypothesis`), and lookahead verification tests (106 total tests, 83.2% total coverage, $\ge 85\%$ in core backtest/portfolio/signals).
 - Verification clean with `mypy --strict` on 52 files, `ruff check`, and `ruff format`.
+
+### 2026-08-23 — Session 4: Developer/Terminal Dark Re-Theme
+- Centralized trading-semantic dark developer/terminal color palette:
+  - Surfaces: `--bg` (`#0a0a0a`), `--bg-sidebar` (`#0d0d0d`), `--surface` (`#141414`), `--surface-2` (`#1c1c1c`), `--active` (`#1a1a1a`).
+  - Borders: `--border` (`#262626`), `--border-subtle` (`#1f1f1f`).
+  - Typography: `--text-1` (`#ededed`), `--text-2` (`#a1a1aa`), `--text-3` (`#71717a`).
+  - Semantics: `--pos` (`#22c55e` primary accent / gains), `--neg` (`#ef4444` errors / losses), `--warn` (`#f59e0b`), `--info` (`#38bdf8`).
+- Updated FastAPI splash page in `atlas/api/main.py` with custom CSS variables, status dot, monospace typography, and hairline borders.
+- Documented Theme & Color System in `docs/ARCHITECTURE.md`, `docs/MASTER_PLAN.md`, and `README.md`.
+- Verified 100% clean check suite: 106 tests passing, strict mypy clean, ruff lint and format clean.

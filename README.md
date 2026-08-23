@@ -38,9 +38,20 @@ ATLAS is an autonomous equity trading system designed to discover, validate, and
 
 ## Documentation
 - `docs/MASTER_PLAN.md` — Master specification and technical blueprint.
-- `docs/ARCHITECTURE.md` — Component architecture and diagrams.
+- `docs/ARCHITECTURE.md` — Component architecture, diagrams, and design tokens.
 - `docs/DATA_CONTRACTS.md` — Core domain types and database schemas.
 - `docs/RISK_FRAMEWORK.md` — Portfolio buckets, risk limits, and kill switches.
 - `docs/VALIDATION_PROTOCOL.md` — Statistical testing and promotion gates.
 - `docs/ROADMAP.md` — Phase progression roadmap.
 - `AGENTS.md` — Operating rules for AI development sessions.
+
+## Theme & Color System
+ATLAS features a dark "developer/terminal" aesthetic optimized for trading observability:
+- **Surfaces**: `--bg` (`#0a0a0a`), `--bg-sidebar` (`#0d0d0d`), `--surface` (`#141414`), `--surface-2` (`#1c1c1c`), `--active` (`#1a1a1a`)
+- **Borders**: `--border` (`#262626`), `--border-subtle` (`#1f1f1f`)
+- **Typography**: `--text-1` (`#ededed` primary), `--text-2` (`#a1a1aa` secondary), `--text-3` (`#71717a` labels/placeholders)
+- **Trading Semantics**:
+  - `--pos` (`#22c55e`): Positive P&L, Buy/Long, gains, and primary accent dot
+  - `--neg` (`#ef4444`): Losses, Sell/Short, errors (small badges/indicators only)
+  - `--warn` (`#f59e0b`): Warnings, pending queues, neutral alerts
+  - `--info` (`#38bdf8`): Informational highlights

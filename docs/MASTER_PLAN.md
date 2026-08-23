@@ -15,7 +15,7 @@ This document is the master index and authoritative specification for ATLAS. All
 7. [Cost Model](DATA_CONTRACTS.md#cost-model)
 8. [Backtesting & Validation Protocol](VALIDATION_PROTOCOL.md)
 9. [Promotion Gates](VALIDATION_PROTOCOL.md#promotion-gates)
-10. [Web Dashboard Specification](ARCHITECTURE.md#web-dashboard-specification)
+10. [Web Dashboard Specification & Color System](ARCHITECTURE.md#web-dashboard-specification)
 11. [Phase Roadmap](ROADMAP.md)
 12. [Agent Operating Rules](../AGENTS.md)
 13. [Working Notes](working_notes.md)
