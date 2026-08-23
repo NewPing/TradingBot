@@ -858,6 +858,10 @@ export interface TranslationDictionary {
     page_title: string;
     page_subtitle: string;
     tax_year_label: string;
+    church_tax_label: string;
+    church_tax_none: string;
+    church_tax_by_bw: string;
+    church_tax_other: string;
     total_tax_liability: string;
     kest_label: string;
     soli_label: string;
@@ -876,6 +880,7 @@ export interface TranslationDictionary {
     tax_lots_subtitle: string;
     tax_events_title: string;
     tax_events_subtitle: string;
+    ecb_rates_title: string;
     col_lot_id: string;
     col_buy_date: string;
     col_buy_price_usd: string;
@@ -890,9 +895,22 @@ export interface TranslationDictionary {
     col_kest: string;
     col_soli: string;
     col_total_tax: string;
+    col_base_curr: string;
+    col_target_curr: string;
+    col_ecb_rate: string;
+    col_inversion: string;
     export_csv: string;
     export_json: string;
     anlage_kap_title: string;
+    kap_subtitle: string;
+    kap_row_18_title: string;
+    kap_row_18_desc: string;
+    kap_row_19_title: string;
+    kap_row_19_desc: string;
+    kap_row_20_title: string;
+    kap_row_20_desc: string;
+    kap_row_23_title: string;
+    kap_row_23_desc: string;
   };
   shadow: {
     title: string;

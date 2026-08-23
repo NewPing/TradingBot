@@ -155,15 +155,15 @@ export default function TaxesPage() {
           {/* Church Tax Selector */}
           <div className="flex items-center gap-1.5 bg-surface-2 border border-border px-2.5 py-1.5 rounded">
             <Landmark className="w-3.5 h-3.5 text-text-3" />
-            <span className="text-[11px] font-mono text-text-3">Kirchensteuer:</span>
+            <span className="text-[11px] font-mono text-text-3">{t("taxes.church_tax_label")}:</span>
             <select
               value={churchTaxRate}
               onChange={(e) => setChurchTaxRate(Number(e.target.value))}
               className="bg-surface text-text-1 text-xs font-mono px-1.5 py-0.5 rounded border border-border focus:outline-none"
             >
-              <option value={0.0}>0% (Keine)</option>
-              <option value={0.08}>8% (BY / BW)</option>
-              <option value={0.09}>9% (Übrige)</option>
+              <option value={0.0}>{t("taxes.church_tax_none")}</option>
+              <option value={0.08}>{t("taxes.church_tax_by_bw")}</option>
+              <option value={0.09}>{t("taxes.church_tax_other")}</option>
             </select>
           </div>
 
@@ -342,7 +342,7 @@ export default function TaxesPage() {
               : "border-transparent text-text-3 hover:text-text-1"
           }`}
         >
-          EZB Wechselkurse ({ecbRates.length})
+          {t("taxes.ecb_rates_title")} ({ecbRates.length})
         </button>
         <button
           onClick={() => setActiveTab("kap")}
@@ -454,10 +454,10 @@ export default function TaxesPage() {
               <thead>
                 <tr className="bg-surface-2 border-b border-border text-text-3 text-[11px]">
                   <th className="py-2.5 px-3">{t("common.date")}</th>
-                  <th className="py-2.5 px-3">Base Currency</th>
-                  <th className="py-2.5 px-3">Target Currency</th>
-                  <th className="py-2.5 px-3 text-right">ECB Reference Rate</th>
-                  <th className="py-2.5 px-3 text-right">Inversion (EUR per USD)</th>
+                  <th className="py-2.5 px-3">{t("taxes.col_base_curr")}</th>
+                  <th className="py-2.5 px-3">{t("taxes.col_target_curr")}</th>
+                  <th className="py-2.5 px-3 text-right">{t("taxes.col_ecb_rate")}</th>
+                  <th className="py-2.5 px-3 text-right">{t("taxes.col_inversion")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -482,44 +482,44 @@ export default function TaxesPage() {
           <div className="border-b border-border pb-3">
             <h3 className="text-sm font-bold text-text-1 flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4 text-pos" />
-              Einkommensteuererklärung — Anlage KAP Formularzuordnung ({selectedYear})
+              {t("taxes.anlage_kap_title")} ({selectedYear})
             </h3>
             <p className="text-[11px] text-text-3 mt-0.5">
-              Direkte Zuordnung der ermittelten Beträge zu den offiziellen Zeilen der Anlage KAP (§ 20 EStG).
+              {t("taxes.kap_subtitle")}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="p-3 rounded bg-surface-2 border border-border space-y-1">
-              <div className="text-[10px] text-text-3">Zeile 18 (Inländische/Ausländische Kapitalerträge)</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_18_title")}</div>
               <div className="text-base font-bold text-pos">
                 €{report ? report.total_realized_gains_eur.toFixed(2) : "0.00"}
               </div>
-              <div className="text-[10px] text-text-3">Summe aller realisierten Bruttogewinne aus Aktien und ETFs</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_18_desc")}</div>
             </div>
 
             <div className="p-3 rounded bg-surface-2 border border-border space-y-1">
-              <div className="text-[10px] text-text-3">Zeile 19 (Gewinne aus Aktienveräußerungen)</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_19_title")}</div>
               <div className="text-base font-bold text-pos">
                 €{report ? report.aktien_gains_eur.toFixed(2) : "0.00"}
               </div>
-              <div className="text-[10px] text-text-3">Darin enthaltene Veräußerungsgewinne aus Aktien</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_19_desc")}</div>
             </div>
 
             <div className="p-3 rounded bg-surface-2 border border-border space-y-1">
-              <div className="text-[10px] text-text-3">Zeile 20 (Veräußerungsverluste ohne Aktien)</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_20_title")}</div>
               <div className="text-base font-bold text-neg">
                 €{report ? report.sonstige_losses_eur.toFixed(2) : "0.00"}
               </div>
-              <div className="text-[10px] text-text-3">Verluste aus ETFs, Fonds und Derivaten</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_20_desc")}</div>
             </div>
 
             <div className="p-3 rounded bg-surface-2 border border-border space-y-1">
-              <div className="text-[10px] text-text-3">Zeile 23 (Veräußerungsverluste aus Aktien)</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_23_title")}</div>
               <div className="text-base font-bold text-neg">
                 €{report ? report.aktien_losses_eur.toFixed(2) : "0.00"}
               </div>
-              <div className="text-[10px] text-text-3">Strikter Aktientopf-Verlustvortrag (§ 20 Abs. 6 Satz 4 EStG)</div>
+              <div className="text-[10px] text-text-3">{t("taxes.kap_row_23_desc")}</div>
             </div>
           </div>
         </div>
