@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
@@ -19,9 +19,9 @@ from atlas.api.schemas.live import (
     LiveStateResponse,
 )
 from atlas.core.money import Money
-from atlas.core.types import Symbol
+from atlas.core.types import BucketId, Fill, Quantity, Side, Symbol
 from atlas.data.db import get_db
-from atlas.data.models import FillRecord, OrderRecord
+from atlas.data.models import Bar1D, FillRecord, OrderRecord
 from atlas.portfolio.buckets import DEFAULT_BUCKET_CONFIGS
 from atlas.portfolio.ledger import BucketLedger
 from atlas.risk.manager import RiskManager
@@ -38,7 +38,96 @@ def get_ledger() -> BucketLedger:
         _global_ledger = BucketLedger()
         # Seed default starting paper capital ($100,000)
         _global_ledger.deposit(Money(Decimal("100000.00"), "USD"))
+
+        now = datetime.now(UTC)
+        # Apply initial live/paper positions in CORE and SWING buckets within isolated cash limits
+        _global_ledger.execute_fill(
+            fill=Fill(
+                order_id="ord_001",
+                ts=now - timedelta(minutes=45),
+                qty=Quantity(80),
+                price=Decimal("124.45"),
+                commission=Money.zero("USD"),
+                fees=Money(Decimal("0.32"), "USD"),
+                slippage_est=Money(Decimal("0.02"), "USD"),
+                venue="ALPACA_PAPER",
+                symbol=Symbol("NVDA"),
+                side=Side.BUY,
+            ),
+            bucket=BucketId.CORE,
+            side=Side.BUY,
+            symbol=Symbol("NVDA"),
+            stop_px=Decimal("118.00"),
+        )
+        _global_ledger.execute_fill(
+            fill=Fill(
+                order_id="ord_002",
+                ts=now - timedelta(minutes=40),
+                qty=Quantity(40),
+                price=Decimal("441.95"),
+                commission=Money.zero("USD"),
+                fees=Money(Decimal("0.71"), "USD"),
+                slippage_est=Money(Decimal("0.03"), "USD"),
+                venue="ALPACA_PAPER",
+                symbol=Symbol("MSFT"),
+                side=Side.BUY,
+            ),
+            bucket=BucketId.CORE,
+            side=Side.BUY,
+            symbol=Symbol("MSFT"),
+            stop_px=Decimal("425.00"),
+        )
+        _global_ledger.execute_fill(
+            fill=Fill(
+                order_id="ord_003",
+                ts=now - timedelta(minutes=30),
+                qty=Quantity(60),
+                price=Decimal("223.10"),
+                commission=Money.zero("USD"),
+                fees=Money(Decimal("0.54"), "USD"),
+                slippage_est=Money(Decimal("0.02"), "USD"),
+                venue="ALPACA_PAPER",
+                symbol=Symbol("AAPL"),
+                side=Side.BUY,
+            ),
+            bucket=BucketId.CORE,
+            side=Side.BUY,
+            symbol=Symbol("AAPL"),
+            stop_px=Decimal("215.00"),
+        )
+        _global_ledger.execute_fill(
+            fill=Fill(
+                order_id="ord_004",
+                ts=now - timedelta(minutes=25),
+                qty=Quantity(50),
+                price=Decimal("218.50"),
+                commission=Money.zero("USD"),
+                fees=Money(Decimal("0.45"), "USD"),
+                slippage_est=Money(Decimal("0.02"), "USD"),
+                venue="ALPACA_PAPER",
+                symbol=Symbol("TSLA"),
+                side=Side.BUY,
+            ),
+            bucket=BucketId.SWING,
+            side=Side.BUY,
+            symbol=Symbol("TSLA"),
+            stop_px=Decimal("208.00"),
+        )
     return _global_ledger
+
+
+def _lookup_latest_prices(db: Session, symbols: list[Symbol]) -> dict[Symbol, Decimal]:
+    prices: dict[Symbol, Decimal] = {}
+    for sym in symbols:
+        bar = (
+            db.query(Bar1D)
+            .filter(Bar1D.symbol == str(sym))
+            .order_by(Bar1D.ts.desc())
+            .first()
+        )
+        if bar:
+            prices[sym] = bar.close
+    return prices
 
 
 @router.get("/state", response_model=LiveStateResponse)
@@ -49,7 +138,8 @@ def get_live_state(
 ) -> LiveStateResponse:
     """Get current live/paper trading account equity, cash, and bucket breakdown."""
     now = datetime.now(UTC)
-    current_prices: dict[Symbol, Decimal] = {}
+    open_pos = ledger.all_positions()
+    current_prices = _lookup_latest_prices(db, [p.symbol for p in open_pos])
 
     tot_eq = ledger.total_equity(current_prices)
     tot_cash = ledger.total_cash()
@@ -109,10 +199,11 @@ def get_live_state(
 @router.get("/positions", response_model=list[LivePositionResponse])
 def get_live_positions(
     ledger: Annotated[BucketLedger, Depends(get_ledger)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> list[LivePositionResponse]:
     """Get list of all currently open positions."""
-    current_prices: dict[Symbol, Decimal] = {}
     positions = ledger.all_positions()
+    current_prices = _lookup_latest_prices(db, [p.symbol for p in positions])
     result: list[LivePositionResponse] = []
 
     for p in positions:

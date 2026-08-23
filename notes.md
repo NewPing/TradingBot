@@ -1,22 +1,30 @@
 # ATLAS — Engineering Notes & Session Log
 
 ## CURRENT STATE
-- **Version**: Adversarial Quantitative Code Review & Full Forensic Remediation
-- **Milestone**: Completed & Verified
+- **Version**: Comprehensive Database Seeding & Interactive Data Activation
+- **Milestone**: Completed & Verified Live
 - **Working Components**:
-  - `atlas.backtest.metrics`: Resolved multi-horizon FIFO lot slicing by calculating full lifecycle roundtrips and filtering by exit date inside each horizon window; fixed trade statistics fallback on open positions; clamped Calmar ratio to `999.99` on monotonic zero-drawdown curves.
-  - `atlas.backtest.broker`: Reset `Position.realized` to `Money.zero()` upon position reversal flips (long-to-short and short-to-long), preventing historical trade P&L carryover into new positions.
-  - `atlas.portfolio.policies`: Enforced strict bucket scoping (`pos.bucket == self.bucket`) in `TopNLongOnlyPolicy` and `TargetWeightPolicy`, preventing cross-bucket position liquidations in shared ledger environments.
-  - `atlas.risk.killswitch`: Refactored rolling 5-day loss evaluation to track trailing 5 market trading sessions rather than raw 120 calendar hours.
-  - `atlas.runner.live`: Implemented full execution parity for ATR trailing stop calculations, stop order generation, and intraday ATR ratcheting in `LiveRunnerDaemon`.
-  - `atlas.signals.features.breadth`: Aligned universe breadth RSI calculation with standard Wilder smoothed RSI (`compute_rsi`).
-  - `atlas.research.sweep`: Synthesized cross-sectionally correlated standard normal diffusion shocks for both overnight gap and intraday price paths using Cholesky factor `L`.
-  - `tests`: 235 unit and property tests passing with zero regressions, strict Mypy clean, Ruff lint & format clean, Next.js build clean across all 14 routes.
-  - `Live Services`: Backend API (:8001) and Webapp (:3000) verified healthy and live.
+  - `Database & Market Ingestion`: Populated 26,090 historical daily OHLCV bars across S&P 500 / NASDAQ liquid universe (`SPY`, `QQQ`, `AAPL`, `MSFT`, `NVDA`, `AMZN`, `GOOGL`, `META`, `TSLA`, `AGG`), creating reproducible Parquet snapshot `snap_2024-12-31_ac5e7c69132a`.
+  - `Backtest Runs`: Executed and recorded baseline backtests across Generation 1 through Generation 5 (`run_core_trend_v1_1_0_0`, `run_core_trend_l2_2_0_0`, `run_core_trend_l3_3_0_0`, `run_core_narrative_l4_4_0_0`, `run_core_catalyst_ai_v5_5_0_0`, `run_swing_meanrev_v1_1_0_0`) with complete FIFO trade blotters (1,309 trades) and equity curves (6,048 points).
+  - `Signals & Explorer`: Fully activated technical charts and sub-panels (RSI 14, MACD, Momentum 20, ATR 14, SMA 20/50/200) and algorithmic universe screener (21 evaluated candidates).
+  - `Live / Paper Ledger`: Seeded isolated sub-account positions (`NVDA`, `MSFT`, `AAPL` in CORE, `TSLA` in SWING) with dynamic market valuation from live database bars, active order blotters (5 orders), fills history (3 fills), and shadow execution telemetry (0.82 bps slippage, 11.2 ms latency).
+  - `Fundamentals & L4 Sentiment`: Seeded point-in-time financial filings (`fundamentals_pit`), upcoming earnings events with blackout statuses, news feed articles, and structured LLM sentiment scores.
+  - `Taxes & German Accounting`: Seeded ECB reference EUR/USD rates (42 daily rates) and § 20 EStG closed tax lots and events.
+  - `Verification`: Strict Mypy clean on all source files, Ruff clean, all 243 pytest tests passing, Next.js production build clean across all 14 routes, Backend API (:8001) and Webapp (:3000) verified live.
 
 ## NEXT UP
-1. [x] Adversarial quantitative audit remediation across all identified flaws.
-2. [ ] Autonomous research sweeps and live execution hardening upon user prompt.
+1. [x] Comprehensive database seeding and interactive data activation across all views.
+2. [ ] Autonomous research sweeps and paper broker execution hardening.
+
+## SESSION LOG
+### 2026-08-24 — Session 20: Comprehensive Database Seeding & Interactive Data Activation
+- Built automated database seeding pipeline in `scripts/seed_demo_data.py`:
+  1. Ingested 26,090 daily OHLCV bars across liquid equity and ETF universe and created deterministic Parquet snapshot.
+  2. Executed full multi-horizon deterministic backtests across Gen 1 to Gen 5 strategy specs with FIFO lot accounting.
+  3. Configured runtime `BucketLedger` in `atlas/api/routers/live.py` with active multi-bucket paper positions, live mark-to-market pricing against `bars_1d`, order blotter history, and execution fills.
+  4. Seeded point-in-time fundamentals (`fundamentals_pit`), earnings calendars, financial news articles, structured LLM scores, ECB exchange rates, and tax accounting lots.
+  5. Enhanced `web/src/app/versions/page.tsx` with auto-sync retry on empty version registry queries.
+- Full verification passed clean: Ruff clean, Mypy strict clean on all source files, 243 pytest tests passing, Next.js build clean on 14 routes, Backend API (:8001) and Webapp (:3000) verified healthy and live.
 
 ## SESSION LOG
 ### 2026-08-23 — Session 19: Full Forensic Remediation of Adversarial Audit Findings
