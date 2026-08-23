@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import polars as pl
@@ -128,7 +128,7 @@ class SnapshotManager:
             snapshot_date=date_str,
             symbols_count=len(symbols_list),
             bars_count=len(df),
-            created_at=datetime.utcnow().isoformat() + "Z",
+            created_at=datetime.now(UTC).isoformat(),
             sha256_hash=parquet_hash,
         )
 

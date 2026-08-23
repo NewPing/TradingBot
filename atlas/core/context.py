@@ -24,7 +24,13 @@ class MarketContext(Protocol):
         """Current simulation or real timestamp (tz-aware UTC)."""
         ...
 
-    def bars(self, symbol: Symbol, lookback: int, resolution: str = "1d") -> pl.DataFrame:
+    def bars(
+        self,
+        symbol: Symbol,
+        lookback: int,
+        resolution: str = "1d",
+        adjusted: bool = False,
+    ) -> pl.DataFrame:
         """Return historical bars up to lookback rows with timestamp <= clock.now."""
         ...
 
@@ -103,7 +109,13 @@ class HistoricalMarketContext(BaseMarketContext):
                     sub_df = bars_df.filter(pl.col("symbol") == sym_val).sort("ts")
                     self._bars_by_symbol[Symbol(str(sym_val))] = sub_df
 
-    def bars(self, symbol: Symbol, lookback: int, resolution: str = "1d") -> pl.DataFrame:
+    def bars(
+        self,
+        symbol: Symbol,
+        lookback: int,
+        resolution: str = "1d",
+        adjusted: bool = False,
+    ) -> pl.DataFrame:
         """Return historical bars up to lookback rows with timestamp <= clock.now."""
         _ = resolution
         if lookback <= 0:
@@ -119,9 +131,18 @@ class HistoricalMarketContext(BaseMarketContext):
         if filtered.is_empty():
             return pl.DataFrame()
 
-        if len(filtered) > lookback:
-            return filtered.tail(lookback)
-        return filtered
+        res_df = filtered.tail(lookback) if len(filtered) > lookback else filtered
+
+        if adjusted and "adj_factor" in res_df.columns:
+            return res_df.with_columns(
+                [
+                    (pl.col("open") * pl.col("adj_factor")).alias("open"),
+                    (pl.col("high") * pl.col("adj_factor")).alias("high"),
+                    (pl.col("low") * pl.col("adj_factor")).alias("low"),
+                    (pl.col("close") * pl.col("adj_factor")).alias("close"),
+                ]
+            )
+        return res_df
 
     def latest(self, symbol: Symbol, resolution: str = "1d") -> Bar | None:
         """Return the most recent bar with timestamp <= clock.now."""

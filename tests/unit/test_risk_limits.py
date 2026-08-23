@@ -93,8 +93,8 @@ def test_session_cutoff_rule() -> None:
     ledger = BucketLedger()
     ledger.deposit(Money(Decimal("100000.00"), "USD"))
 
-    # Order created at 15:55 (within 10m of 16:00 close)
-    ts = datetime(2026, 1, 15, 15, 55, tzinfo=UTC)
+    # Order created at 15:55 ET (20:55 UTC, within 10m of 16:00 ET close)
+    ts = datetime(2026, 1, 15, 20, 55, tzinfo=UTC)
     order = make_test_order(created_ts=ts)
     prices = {Symbol("AAPL"): Decimal("100.00")}
 

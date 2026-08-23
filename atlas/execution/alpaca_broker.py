@@ -119,9 +119,9 @@ class AlpacaPaperBroker:
             "time_in_force": order.tif.value.lower(),
             "client_order_id": order.id,
         }
-        if order.limit_px is not None:
+        if order.type in (OrderType.LIMIT, OrderType.STOP_LIMIT) and order.limit_px is not None:
             body["limit_price"] = str(order.limit_px)
-        if order.stop_px is not None:
+        if order.type in (OrderType.STOP, OrderType.STOP_LIMIT) and order.stop_px is not None:
             body["stop_price"] = str(order.stop_px)
 
         res = self._request("POST", "/v2/orders", body)
@@ -185,7 +185,7 @@ class AlpacaPaperBroker:
             BucketId.CORE: equity * Decimal("0.50"),
             BucketId.SWING: equity * Decimal("0.30"),
             BucketId.MOONSHOT: equity * Decimal("0.15"),
-            BucketId.CASH: cash,
+            BucketId.CASH: equity * Decimal("0.05"),
         }
 
         return AccountState(

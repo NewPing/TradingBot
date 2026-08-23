@@ -188,7 +188,7 @@ class StatisticalFeatureExtractor(FeatureExtractor):
 
     def extract_pit(self, ctx: MarketContext, symbol: Symbol) -> dict[str, float]:
         """Extract latest feature dictionary strictly at or before ctx.now."""
-        df_pl = ctx.bars(symbol, lookback=self.warmup_bars)
+        df_pl = ctx.bars(symbol, lookback=self.warmup_bars, adjusted=True)
         if df_pl.is_empty() or len(df_pl) < self._max_lookback:
             return dict.fromkeys(self.feature_names, 0.0)
 
@@ -284,7 +284,7 @@ class StatisticalFeatureExtractor(FeatureExtractor):
             res["garman_klass_vol_21d"][i] = math.sqrt(max(0.0, gk_mean)) * sqrt_252
             res["parkinson_vol_21d"][i] = math.sqrt(max(0.0, park_mean)) * sqrt_252
 
-        # 4. Normalized ATR
+        # 4. Normalized ATR (Wilder's smoothed)
         res["atr_norm_14d"] = np.zeros(n)
         tr = np.zeros(n)
         for i in range(n):
@@ -296,9 +296,12 @@ class StatisticalFeatureExtractor(FeatureExtractor):
                     abs(high[i] - close[i - 1]),
                     abs(low[i] - close[i - 1]),
                 )
-        for i in range(14, n):
-            atr_val = float(np.mean(tr[i - 13 : i + 1]))
-            res["atr_norm_14d"][i] = (atr_val / close[i]) if close[i] > 0 else 0.0
+        if n >= 15:
+            current_atr = float(np.mean(tr[1:15]))
+            res["atr_norm_14d"][14] = (current_atr / close[14]) if close[14] > 0 else 0.0
+            for i in range(15, n):
+                current_atr = (current_atr * 13.0 + tr[i]) / 14.0
+                res["atr_norm_14d"][i] = (current_atr / close[i]) if close[i] > 0 else 0.0
 
         # 5. SMA Distances
         res["sma_dist_20d"] = np.zeros(n)
@@ -353,16 +356,16 @@ class StatisticalFeatureExtractor(FeatureExtractor):
 
         # 9. 52-week Range Position
         res["range_pos_52w"] = np.zeros(n)
-        for i in range(252, n):
-            h_win = float(np.max(high[i - 251 : i + 1]))
-            l_win = float(np.min(low[i - 251 : i + 1]))
+        for i in range(251, n):
+            h_win = float(np.max(high[max(0, i - 251) : i + 1]))
+            l_win = float(np.min(low[max(0, i - 251) : i + 1]))
             rng = h_win - l_win
             res["range_pos_52w"][i] = (close[i] - l_win) / rng if rng > 1e-8 else 0.5
 
-        # 10. Volume Z-Score 20d
+        # 10. Volume Z-Score 20d (baseline on prior 20 bars excluding current bar)
         res["volume_zscore_20d"] = np.zeros(n)
-        for i in range(20, n):
-            v_win = volume[i - 19 : i + 1]
+        for i in range(21, n):
+            v_win = volume[i - 20 : i]
             mean_v = float(np.mean(v_win))
             std_v = float(np.std(v_win, ddof=1))
             res["volume_zscore_20d"][i] = (volume[i] - mean_v) / std_v if std_v > 1e-8 else 0.0
@@ -372,15 +375,21 @@ class StatisticalFeatureExtractor(FeatureExtractor):
 
 
 def _calc_ema(data: np.ndarray[Any, Any], span: int) -> np.ndarray[Any, Any]:
-    """Calculate exponential moving average."""
+    """Calculate exponential moving average seeded with initial mean."""
     n = len(data)
     ema = np.zeros(n)
     if n == 0:
         return ema
+    if n < span:
+        ema[:] = np.mean(data)
+        return ema
     alpha = 2.0 / (span + 1.0)
-    ema[0] = data[0]
-    for i in range(1, n):
+    ema[span - 1] = float(np.mean(data[:span]))
+    for i in range(span, n):
         ema[i] = alpha * data[i] + (1.0 - alpha) * ema[i - 1]
+    # Backfill warm-up period
+    for i in range(span - 2, -1, -1):
+        ema[i] = ema[span - 1]
     return ema
 
 

@@ -119,6 +119,15 @@ def test_gatekeeper_rejects_insufficient_sample_size(base_spec: StrategySpec) ->
         spec=base_spec,
         train_metrics=train_metrics,
         trade_returns=trade_returns,
+        walk_forward_fold_sharpes=[1.2, 1.4, 1.1, 1.3, 1.2, 1.5],
+        perturbed_sharpes=[1.8, 1.75, 1.85],
+        stressed_cost_sharpe=1.1,
+        regime_sharpes={
+            "BULL_LOW_VOL": 2.0,
+            "BULL_HIGH_VOL": 1.5,
+            "BEAR_HIGH_VOL": 0.5,
+            "BEAR_LOW_VOL": 0.8,
+        },
     )
 
     assert eval_result.passed_all is False

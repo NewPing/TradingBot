@@ -115,9 +115,10 @@ class OrderManager:
 
     def process_fill(self, fill: Fill) -> None:
         """Process fill event from broker, update ledger and order status."""
-        order = self.active_orders.get(fill.order_id) or self.order_history.get(fill.order_id)
+        order_id = self.broker_ref_map.get(str(fill.order_id), fill.order_id)
+        order = self.active_orders.get(order_id) or self.order_history.get(order_id)
         if order is None:
-            logger.warning(f"Received fill for unknown order_id: {fill.order_id}")
+            logger.warning(f"Received fill for unknown order_id / ref: {fill.order_id}")
             return
 
         # Execute fill in bucket ledger

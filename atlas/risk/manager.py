@@ -42,6 +42,8 @@ class RiskManager:
         symbol_adv: dict[Symbol, Decimal] | None = None,
         symbol_correlations: dict[tuple[Symbol, Symbol], float] | None = None,
         critical_data_symbols: set[Symbol] | None = None,
+        is_simulated: bool = False,
+        skip_session_cutoff: bool = False,
     ) -> list[RiskCheckResult]:
         """Validate proposed order against kill switch status and §6.3 hard limits."""
         # 1. Kill switch state check
@@ -65,6 +67,8 @@ class RiskManager:
             order_counts_today=self.order_counts_today,
             symbol_correlations=symbol_correlations,
             critical_data_symbols=critical_data_symbols,
+            is_simulated=is_simulated,
+            skip_session_cutoff=skip_session_cutoff,
         )
 
         failures = [r for r in results if not r.passed]

@@ -219,3 +219,190 @@ class NarrativeMomentumSignalProvider(SignalProvider):
                 "narrative_vol_surge": float(volume_surge),
             },
         )
+
+
+class ExecutiveCatalystSignalProvider(SignalProvider):
+    """L4 Signal Provider: High-impact CEO / executive statements & product cycle breakthroughs.
+
+    Focuses on transformative catalysts (product announcements, major contract wins, executive tone).
+    """
+
+    def __init__(
+        self,
+        id: str = "l4_executive_catalyst",
+        version: str = "1.0.0",
+        lookback_hours: int = 72,
+        catalyst_weight: float = 1.5,
+        min_relevance: float = 0.5,
+    ) -> None:
+        self._id = id
+        self._version = version
+        self.lookback_hours = lookback_hours
+        self.catalyst_weight = catalyst_weight
+        self.min_relevance = min_relevance
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def layer(self) -> SignalLayer:
+        return SignalLayer.L4_NARRATIVE
+
+    def warmup_bars(self) -> int:
+        return 1
+
+    def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
+        news_items = ctx.news(symbol, lookback_hours=self.lookback_hours)
+        if not news_items:
+            return None
+
+        # Filter for high relevance items mentioning executive / product / strategic catalysts
+        catalyst_keywords = (
+            "ceo",
+            "executive",
+            "musk",
+            "jensen",
+            "product",
+            "launch",
+            "contract",
+            "ai",
+            "deal",
+            "breakthrough",
+            "guidance",
+        )
+        catalyst_scores: list[float] = []
+        catalyst_rationales: list[str] = []
+
+        for item in news_items:
+            rel = item.relevance_score if item.relevance_score is not None else 0.7
+            if rel < self.min_relevance:
+                continue
+
+            headline = (getattr(item, "headline", "") or getattr(item, "title", "") or "").lower()
+            rationale = getattr(item, "rationale", "") or ""
+            text_to_check = f"{headline} {rationale}".lower()
+
+            is_catalyst = any(kw in text_to_check for kw in catalyst_keywords)
+            score = item.sentiment_score if item.sentiment_score is not None else 0.0
+
+            if is_catalyst:
+                catalyst_scores.append(score * self.catalyst_weight)
+                if rationale and not catalyst_rationales:
+                    catalyst_rationales.append(rationale)
+            else:
+                catalyst_scores.append(score)
+
+        if not catalyst_scores:
+            return None
+
+        avg_score = sum(catalyst_scores) / float(len(catalyst_scores))
+        clamped_score = max(-1.0, min(1.0, avg_score))
+        confidence = min(0.95, 0.55 + 0.10 * len(catalyst_scores))
+
+        rat = (
+            catalyst_rationales[0]
+            if catalyst_rationales
+            else f"Executive catalyst scoring across {len(catalyst_scores)} events."
+        )
+
+        return Signal(
+            provider=self.id,
+            layer=self.layer,
+            symbol=symbol,
+            ts=ctx.now,
+            score=float(clamped_score),
+            confidence=float(confidence),
+            rationale=f"L4 Executive & Catalyst: score={clamped_score:+.2f}. {rat}",
+            features={
+                "catalyst_event_count": float(len(catalyst_scores)),
+                "catalyst_composite_score": float(clamped_score),
+            },
+        )
+
+
+class MacroGeopoliticalShockSignalProvider(SignalProvider):
+    """L4 Signal Provider: Macroeconomic policy, tariffs, and geopolitical shock defense.
+
+    Scales down exposure or flags defensive rotation during macro policy turbulence.
+    """
+
+    def __init__(
+        self,
+        id: str = "l4_macro_shock",
+        version: str = "1.0.0",
+        lookback_hours: int = 48,
+        tariff_sensitivity: float = 1.2,
+    ) -> None:
+        self._id = id
+        self._version = version
+        self.lookback_hours = lookback_hours
+        self.tariff_sensitivity = tariff_sensitivity
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def layer(self) -> SignalLayer:
+        return SignalLayer.L4_NARRATIVE
+
+    def warmup_bars(self) -> int:
+        return 1
+
+    def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
+        # Check macro news for broad market ETF or individual symbol
+        macro_news = ctx.news(Symbol("SPY"), lookback_hours=self.lookback_hours) or ctx.news(
+            symbol, lookback_hours=self.lookback_hours
+        )
+        if not macro_news:
+            return None
+
+        macro_keywords = (
+            "tariff",
+            "trade war",
+            "sanction",
+            "fed",
+            "inflation",
+            "rate hike",
+            "recession",
+            "executive order",
+            "trump",
+        )
+        shock_scores: list[float] = []
+
+        for item in macro_news:
+            headline = (getattr(item, "headline", "") or getattr(item, "title", "") or "").lower()
+            rationale = (getattr(item, "rationale", "") or "").lower()
+            if any(kw in f"{headline} {rationale}" for kw in macro_keywords):
+                score = item.sentiment_score if item.sentiment_score is not None else 0.0
+                shock_scores.append(score * self.tariff_sensitivity)
+
+        if not shock_scores:
+            return None
+
+        avg_shock = sum(shock_scores) / float(len(shock_scores))
+        clamped_score = max(-1.0, min(1.0, avg_shock))
+        confidence = min(0.90, 0.60 + 0.05 * len(shock_scores))
+
+        return Signal(
+            provider=self.id,
+            layer=self.layer,
+            symbol=symbol,
+            ts=ctx.now,
+            score=float(clamped_score),
+            confidence=float(confidence),
+            rationale=f"L4 Macro/Geopolitical Shock: score={clamped_score:+.2f} ({len(shock_scores)} macro shock events)",
+            features={
+                "macro_shock_events": float(len(shock_scores)),
+                "macro_shock_score": float(clamped_score),
+            },
+        )

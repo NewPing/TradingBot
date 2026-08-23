@@ -133,6 +133,13 @@ class EarningsSurpriseSignalProvider(SignalProvider):
         if snapshot is None:
             return None
 
+        filing_dt = snapshot.filing_date
+        filing_date_obj = filing_dt.date() if hasattr(filing_dt, "date") else filing_dt
+        now_date_obj = ctx.now.date() if hasattr(ctx.now, "date") else ctx.now
+        age_days = (now_date_obj - filing_date_obj).days
+        if age_days < 0 or age_days > self.lookback_days:
+            return None
+
         m = snapshot.metrics
         eps_actual = m.get("eps_actual", m.get("eps", 0.0))
         eps_est = m.get("eps_estimated", 0.0)

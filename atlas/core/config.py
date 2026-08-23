@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # Capital & Portfolio
     atlas_virtual_capital_usd: Decimal = Decimal("100000")
     atlas_bucket_alloc: str = "CORE:0.50,SWING:0.30,MOONSHOT:0.15,CASH:0.05"
+    atlas_trial_budget: str = "unlimited"
 
     # Storage
     atlas_db_url: str = "postgresql+psycopg://atlas:atlas_dev_password@localhost:5432/atlas"

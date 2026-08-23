@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -37,7 +37,8 @@ class YFinanceProvider(BaseDataProvider):
     async def is_healthy(self) -> bool:
         """Check yfinance connectivity with a small SPY request."""
         try:
-            bars = await self.fetch_daily_bars(Symbol("SPY"), date.today(), date.today())
+            today = date.today()
+            bars = await self.fetch_daily_bars(Symbol("SPY"), today - timedelta(days=5), today)
             return isinstance(bars, list)
         except Exception as e:
             logger.warning("yfinance healthcheck failed: %s", e)
@@ -54,10 +55,12 @@ class YFinanceProvider(BaseDataProvider):
         except ImportError as exc:
             raise ProviderError("yfinance is not installed in the environment.") from exc
 
+        # yfinance end date is exclusive; add 1 day so end_date is inclusive
+        end_exclusive = end_date + timedelta(days=1)
         ticker = yf.Ticker(symbol)
         df = ticker.history(
             start=start_date.isoformat(),
-            end=end_date.isoformat(),
+            end=end_exclusive.isoformat(),
             interval="1d",
             auto_adjust=False,
             actions=True,

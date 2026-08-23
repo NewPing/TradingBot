@@ -34,6 +34,11 @@ class MLTrainer:
         """Train and validate a LightGBM directional classifier with Purged CV."""
         # 1. Clean data: drop rows with NaNs in features or target
         clean_df = df.dropna(subset=feature_cols + [target_col]).copy()
+        if "timestamp" in clean_df.columns:
+            clean_df = clean_df.sort_values("timestamp").reset_index(drop=True)
+        else:
+            clean_df = clean_df.reset_index(drop=True)
+
         if len(clean_df) < 100:
             raise ValueError(f"Insufficient training samples ({len(clean_df)}) for ML training")
 
@@ -61,7 +66,16 @@ class MLTrainer:
             default_params.update(params)
 
         # 3. Purged K-Fold Cross-Validation
-        cv = PurgedKFoldCV(n_splits=n_splits, embargo_bars=target_horizon_days)
+        if "timestamp" in clean_df.columns:
+            times = pd.to_datetime(clean_df["timestamp"])
+            t1 = times + pd.to_timedelta(target_horizon_days, unit="D")
+        elif isinstance(clean_df.index, pd.DatetimeIndex):
+            times = pd.Series(clean_df.index)
+            t1 = times + pd.to_timedelta(target_horizon_days, unit="D")
+        else:
+            t1 = pd.Series(np.arange(len(clean_df)) + target_horizon_days)
+
+        cv = PurgedKFoldCV(n_splits=n_splits, t1=t1, embargo_bars=target_horizon_days)
         oof_preds = np.zeros(len(clean_df))
         fold_aucs: list[float] = []
         fold_accs: list[float] = []

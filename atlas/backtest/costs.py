@@ -39,8 +39,10 @@ class DefaultCostModelV1:
     finra_taf_cap: Decimal = Decimal("8.30")
     adv_high_threshold_usd: Decimal = Decimal("50000000")  # $50M
     default_daily_vol: Decimal = Decimal("0.02")  # 2% default if not available
+    default_adv_usd: Decimal = Decimal("5000000")  # Conservative $5M default if ADV unavailable
     cash_yield_annual: Decimal = Decimal("0.04")  # 4% annual on idle cash
     borrow_rate_annual: Decimal = Decimal("0.03")  # 3% annual on short notional
+    margin_rate_annual: Decimal = Decimal("0.06")  # 6% annual on negative cash balances
 
     def calculate_commission(self, qty: int, price: Decimal) -> Money:
         """Calculate broker commission."""
@@ -107,7 +109,7 @@ class DefaultCostModelV1:
         )
         order_notional = Decimal(qty) * price
 
-        adv = adv_usd if adv_usd > Decimal("0") else Decimal("10000000")
+        adv = adv_usd if adv_usd > Decimal("0") else self.default_adv_usd
         impact_ratio = float(order_notional / adv)
         slippage_pct = Decimal(str(self.k)) * vol * Decimal(str(math.sqrt(max(0.0, impact_ratio))))
 

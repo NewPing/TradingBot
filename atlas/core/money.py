@@ -162,6 +162,8 @@ class Money:
         return Money(self._amount + other._amount, self._currency)
 
     def __radd__(self, other: Any) -> Money:
+        if isinstance(other, (int, Decimal)) and other == 0:
+            return self
         return self.__add__(other)
 
     def __sub__(self, other: Any) -> Money:

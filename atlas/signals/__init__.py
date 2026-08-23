@@ -28,6 +28,8 @@ from atlas.signals.l3_fundamental import (
     ValuationQualitySignalProvider,
 )
 from atlas.signals.l4_narrative import (
+    ExecutiveCatalystSignalProvider,
+    MacroGeopoliticalShockSignalProvider,
     NarrativeMomentumSignalProvider,
     NewsSentimentSignalProvider,
 )
@@ -44,12 +46,14 @@ __all__ = [
     "CrossSectionalMomentumProvider",
     "CrossSectionalRanker",
     "EarningsSurpriseSignalProvider",
+    "ExecutiveCatalystSignalProvider",
     "FeatureEngine",
     "FeatureExtractor",
     "FeatureMetadata",
     "FiftyTwoWeekSignalProvider",
     "LightGBMSignalProvider",
     "MacdSignalProvider",
+    "MacroGeopoliticalShockSignalProvider",
     "MarketBreadthCalculator",
     "MarketQuadrant",
     "MarketRegimeSignalProvider",

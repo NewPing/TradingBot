@@ -12,7 +12,9 @@ from atlas.api.routers import (
     research,
     risk,
     runs,
+    shadow,
     signals,
+    taxes,
     trials,
     versions,
 )
@@ -27,7 +29,9 @@ __all__ = [
     "research",
     "risk",
     "runs",
+    "shadow",
     "signals",
+    "taxes",
     "trials",
     "versions",
 ]

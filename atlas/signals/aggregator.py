@@ -7,6 +7,13 @@ from datetime import datetime
 
 from atlas.core.types import Signal, SignalLayer, Symbol
 
+LAYER_RANK: dict[SignalLayer, int] = {
+    SignalLayer.L1_TECHNICAL: 1,
+    SignalLayer.L2_STATISTICAL: 2,
+    SignalLayer.L3_FUNDAMENTAL: 3,
+    SignalLayer.L4_NARRATIVE: 4,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class WeightedConfidenceAggregator:
@@ -48,7 +55,7 @@ class WeightedConfidenceAggregator:
                 combined_features[f"{s.provider}_{k}"] = v
 
             # Track highest layer
-            if s.layer > highest_layer:
+            if LAYER_RANK.get(s.layer, 0) > LAYER_RANK.get(highest_layer, 0):
                 highest_layer = s.layer
 
         if denominator <= 0.0 or total_weight <= 0.0:

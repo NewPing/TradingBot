@@ -84,7 +84,7 @@ class PurgedKFoldCV:
             test_idx = indices[test_start:test_end]
 
             test_times = times.iloc[test_idx]
-            test_t0 = test_times.iloc[0]
+            test_t0 = test_times.min()
             test_t1 = t1_series.iloc[test_idx].max()
 
             # 1. Purging: find train indices where sample window does NOT overlap [test_t0, test_t1]

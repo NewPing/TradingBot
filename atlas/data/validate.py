@@ -241,3 +241,13 @@ class DataValidator:
             issues.extend(cls.validate_cross_source_consistency(bars, secondary_bars))
 
         return issues
+
+    @classmethod
+    def verify_real_market_data(cls, bars: Sequence[Bar]) -> bool:
+        """Verify that market data consists of real historical bars with positive volume and valid bounds."""
+        if not bars:
+            return False
+        for b in bars:
+            if b.low <= 0 or b.high < b.low or b.open <= 0 or b.close <= 0:
+                return False
+        return True

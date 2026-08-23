@@ -134,6 +134,7 @@ class KillSwitchManager:
         self.peak_equity: Decimal = Decimal("0")
         self.session_open_equity: Decimal = Decimal("0")
         self.rolling_equity_history: list[tuple[datetime, Decimal]] = []
+        self.rolling_session_equities: list[Decimal] = []
         self.trailing_order_statuses: list[bool] = []  # True = filled/accepted, False = rejected
         self.last_broker_heartbeat: datetime | None = None
         self.stale_bar_count: int = 0
@@ -283,25 +284,22 @@ class KillSwitchManager:
                 )
             )
 
-        # Track history for rolling 5-day loss
+        # Track history for rolling 5-session loss
         self.rolling_equity_history.append((ts, eq_amt))
-        # Keep only recent days
-        cutoff = ts.timestamp() - (5 * 86400)
-        self.rolling_equity_history = [
-            (t, e) for t, e in self.rolling_equity_history if t.timestamp() >= cutoff
-        ]
-        if self.rolling_equity_history:
-            oldest_eq = self.rolling_equity_history[0][1]
-            if oldest_eq > Decimal("0"):
-                rolling_ret = (eq_amt - oldest_eq) / oldest_eq
-                if rolling_ret <= Decimal("-0.05"):
-                    triggered.append(
-                        self.trigger(
-                            KillSwitchTrigger.ROLLING_5D_LOSS,
-                            f"Rolling 5-day loss {rolling_ret:.2%} breached -5.00% limit",
-                            now=ts,
-                        )
+        if not self.rolling_session_equities:
+            self.rolling_session_equities.append(self.session_open_equity)
+
+        oldest_eq = self.rolling_session_equities[0]
+        if oldest_eq > Decimal("0"):
+            rolling_ret = (eq_amt - oldest_eq) / oldest_eq
+            if rolling_ret <= Decimal("-0.05"):
+                triggered.append(
+                    self.trigger(
+                        KillSwitchTrigger.ROLLING_5D_LOSS,
+                        f"Rolling 5-day loss {rolling_ret:.2%} breached -5.00% limit",
+                        now=ts,
                     )
+                )
 
         return triggered
 
@@ -364,6 +362,10 @@ class KillSwitchManager:
     def new_session(self, open_equity: Decimal) -> None:
         """Reset session-level daily loss metrics on market open."""
         self.session_open_equity = open_equity
+        if open_equity > Decimal("0"):
+            self.rolling_session_equities.append(open_equity)
+            if len(self.rolling_session_equities) > 5:
+                self.rolling_session_equities.pop(0)
         # Auto-reset daily loss on new session
         if KillSwitchTrigger.DAILY_LOSS in self.active_switches:
             self.reset(KillSwitchTrigger.DAILY_LOSS, resolved_by="session_roll")

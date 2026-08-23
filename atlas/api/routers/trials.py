@@ -1,4 +1,4 @@
-"""FastAPI router for sacred multiple-testing trial counters and budget metrics."""
+"""FastAPI router for sacred trial tracking and multiple testing budget telemetry."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from atlas.api.schemas.trials import TrialBudgetResponse, TrialResponse
 from atlas.data.db import get_db
 from atlas.research.trials import TrialTracker
 
-router = APIRouter(prefix="/api/v1/trials", tags=["Research Trials"])
+router = APIRouter(prefix="/api/v1/trials", tags=["Trial Ledger"])
 
 
 @router.get("", response_model=list[TrialResponse])
@@ -21,22 +21,22 @@ def list_trials(
     family: Annotated[str | None, Query(description="Filter by strategy family")] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[TrialResponse]:
-    """List recorded trial evaluations."""
+    """List historical trials recorded in the multiple testing ledger."""
     tracker = TrialTracker(db)
     records = tracker.list_trials(family=family, limit=limit)
     return [
         TrialResponse(
-            id=t.id,
-            hypothesis_id=t.hypothesis_id,
-            run_id=t.run_id,
-            family=t.family,
-            params=json.loads(t.params) if t.params else {},
-            metrics=json.loads(t.metrics) if t.metrics else {},
-            outcome=t.outcome,
-            notes=t.notes,
-            created_at=t.created_at,
+            id=r.id,
+            hypothesis_id=r.hypothesis_id,
+            run_id=r.run_id,
+            family=r.family,
+            params=json.loads(r.params) if r.params else {},
+            metrics=json.loads(r.metrics) if r.metrics else {},
+            outcome=r.outcome,
+            notes=r.notes,
+            created_at=r.created_at,
         )
-        for t in records
+        for r in records
     ]
 
 
@@ -44,9 +44,11 @@ def list_trials(
 def get_trial_budget(
     db: Annotated[Session, Depends(get_db)],
     family: Annotated[str | None, Query(description="Filter by strategy family")] = None,
-    weekly_budget: Annotated[int, Query(ge=1, le=5000)] = 500,
+    weekly_budget: Annotated[
+        int, Query(description="Weekly budget constraint (0 or negative for unlimited in v1.5)")
+    ] = 0,
 ) -> TrialBudgetResponse:
-    """Get trial counter and weekly testing budget consumption."""
+    """Get sacred trial budget status and multiple testing consumption rate."""
     tracker = TrialTracker(db)
-    status_data = tracker.get_budget_status(family=family, weekly_budget=weekly_budget)
-    return TrialBudgetResponse(**status_data)
+    status = tracker.get_budget_status(family=family, weekly_budget=weekly_budget)
+    return TrialBudgetResponse(**status)

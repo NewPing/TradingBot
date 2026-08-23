@@ -165,6 +165,38 @@ async def handle_ingest_news(args: argparse.Namespace) -> None:
     )
 
 
+async def handle_ingest_benchmark(args: argparse.Namespace) -> None:
+    benchmark_symbols = [Symbol(s.strip().upper()) for s in args.benchmarks.split(",")]
+    start_d = date.fromisoformat(args.start)
+    end_d = date.fromisoformat(args.end)
+
+    provider: BaseDataProvider
+    if args.provider == "alpaca":
+        provider = AlpacaMarketDataProvider()
+    elif args.provider == "tiingo":
+        provider = TiingoProvider()
+    else:
+        provider = YFinanceProvider()
+
+    pipeline = DataIngestPipeline(primary_provider=provider)
+    session = None if args.dry_run else get_db_session()
+
+    for sym in benchmark_symbols:
+        logger.info("Ingesting 100%% real historical benchmark data for %s from %s to %s...", sym, start_d, end_d)
+        bars, issues, result = await pipeline.ingest_symbol(
+            symbol=sym,
+            start_date=start_d,
+            end_date=end_d,
+            session=session,
+        )
+        logger.info(
+            "Benchmark %s ingested: %d bars, %d issues flagged",
+            sym,
+            result.bars_ingested,
+            result.issues_found,
+        )
+
+
 def handle_coverage(args: argparse.Namespace) -> None:
     _ = args
     session = get_db_session()
@@ -213,6 +245,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     news_p.add_argument("--limit", type=int, default=50, help="Max articles per request")
     news_p.add_argument("--dry-run", action="store_true", help="Do not persist to database")
 
+    # Ingest Benchmark (SPY / QQQ)
+    bm_p = subparsers.add_parser("ingest-benchmark", help="Ingest real historical benchmark series (SPY, QQQ)")
+    bm_p.add_argument(
+        "--benchmarks", default="SPY,QQQ", help="Comma-separated benchmark symbols"
+    )
+    bm_p.add_argument("--start", default="2005-01-01", help="Start date (YYYY-MM-DD)")
+    bm_p.add_argument("--end", default=date.today().isoformat(), help="End date (YYYY-MM-DD)")
+    bm_p.add_argument("--provider", default="yfinance", choices=["yfinance", "tiingo", "alpaca"])
+    bm_p.add_argument("--dry-run", action="store_true", help="Do not write to DB")
+
     # Coverage
     subparsers.add_parser("coverage", help="Display symbol bar coverage matrix")
 
@@ -220,6 +262,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "ingest":
         asyncio.run(handle_ingest(args))
+    elif args.command == "ingest-benchmark":
+        asyncio.run(handle_ingest_benchmark(args))
     elif args.command == "ingest-news":
         asyncio.run(handle_ingest_news(args))
     elif args.command == "snapshot":

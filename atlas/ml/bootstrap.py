@@ -37,9 +37,11 @@ def bootstrap_default_lgbm_model(
     for i in range(20, n_days):
         rets[i] += 0.05 * rets[i - 1]
     prices = 100.0 * np.exp(np.cumsum(rets))
-    highs = prices * (1.0 + np.abs(np.random.normal(0.005, 0.004, n_days)))
-    lows = prices * (1.0 - np.abs(np.random.normal(0.005, 0.004, n_days)))
+    raw_highs = prices * (1.0 + np.abs(np.random.normal(0.005, 0.004, n_days)))
+    raw_lows = prices * (1.0 - np.abs(np.random.normal(0.005, 0.004, n_days)))
     opens = prices * (1.0 + np.random.normal(0.0, 0.003, n_days))
+    highs = np.maximum(np.maximum(prices, opens), raw_highs)
+    lows = np.minimum(np.minimum(prices, opens), raw_lows)
     volumes = np.random.lognormal(14.0, 0.5, n_days)
 
     df_bars = pd.DataFrame(

@@ -82,12 +82,17 @@ description: Trend following test
 
 
 def test_trials_and_signals_endpoints(client_with_db):
-    # Trial budget
+    # Trial budget (unlimited in v1.5)
     res = client_with_db.get("/api/v1/trials/budget")
     assert res.status_code == 200
     data = res.json()
     assert "weekly_budget" in data
-    assert data["weekly_budget"] == 500
+    assert data.get("is_unlimited") is True
+
+    # Parameterized budget
+    res_param = client_with_db.get("/api/v1/trials/budget?weekly_budget=500")
+    assert res_param.status_code == 200
+    assert res_param.json()["weekly_budget"] == 500
 
     # Signals explore
     res = client_with_db.get("/api/v1/signals/explore?symbol=SPY")

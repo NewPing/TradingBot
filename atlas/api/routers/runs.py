@@ -14,11 +14,13 @@ from sqlalchemy.orm import Session
 
 from atlas.api.schemas.runs import (
     EquityPointResponse,
+    HorizonMetricsResponse,
     RunCreateRequest,
     RunResponse,
     RunTradeResponse,
 )
 from atlas.backtest.engine import BacktestEngine
+from atlas.backtest.metrics import compute_multi_horizon_metrics
 from atlas.backtest.registry import RunRegistry
 from atlas.core.errors import RunNotFoundError, StrategyVersionNotFoundError
 from atlas.core.money import Money
@@ -137,27 +139,140 @@ def trigger_backtest_run(
         dd = (peak - eq) / peak if peak > 0 else 0.0
         pt["drawdown"] = dd
 
-    # 4. Format trades from fills
+    # 4. Format trades from fills using FIFO matching
     trade_data: list[dict[str, Any]] = []
-    for idx, f in enumerate(result.fills):
-        trade_data.append(
-            {
-                "trade_id": f"T{idx + 1:04d}",
-                "symbol": str(f.order_id),
-                "direction": "LONG" if f.qty > 0 else "SHORT",
-                "entry_time": f.ts,
-                "exit_time": f.ts,
-                "entry_price": float(f.price),
-                "exit_price": float(f.price),
-                "quantity": abs(f.qty),
-                "pnl": 0.0,
-                "pnl_net": -float(f.commission.amount + f.fees.amount),
-                "return_pct": 0.0,
-                "fees": float(f.fees.amount),
-                "slippage": float(f.slippage_est.amount),
-                "exit_reason": "FILL",
-            }
+    long_lots_map: dict[str, list[dict[str, Any]]] = {}
+    short_lots_map: dict[str, list[dict[str, Any]]] = {}
+    trade_counter = 1
+
+    for f in result.fills:
+        sym = (
+            str(f.symbol)
+            if f.symbol
+            else (str(f.order_id).split("_")[1] if len(str(f.order_id).split("_")) > 1 else "SPY")
         )
+        fill_price = float(f.price)
+        total_fees = float(f.commission.amount + f.fees.amount)
+        slippage_val = float(f.slippage_est.amount)
+        fill_qty = abs(f.qty)
+        is_buy = (
+            (
+                f.side.value.upper() == "BUY"
+                if hasattr(f.side, "value")
+                else str(f.side).upper() == "BUY"
+            )
+            if f.side is not None
+            else (not str(f.order_id).startswith("stop_") and f.qty > 0)
+        )
+
+        if is_buy:
+            if sym in short_lots_map and short_lots_map[sym]:
+                qty_to_cover = fill_qty
+                while qty_to_cover > 0 and short_lots_map[sym]:
+                    lot = short_lots_map[sym][0]
+                    matched_qty = min(qty_to_cover, lot["qty"])
+                    fee_share = total_fees * (matched_qty / fill_qty) + lot["fees"] * (
+                        matched_qty / lot["qty"]
+                    )
+                    trade_pnl = (lot["price"] - fill_price) * matched_qty
+                    trade_pnl_net = trade_pnl - fee_share
+                    ret_pct = (
+                        (lot["price"] - fill_price) / lot["price"] if lot["price"] > 0 else 0.0
+                    )
+
+                    trade_data.append(
+                        {
+                            "trade_id": f"T{trade_counter:04d}",
+                            "symbol": sym,
+                            "direction": "SHORT",
+                            "entry_time": lot["ts"],
+                            "exit_time": f.ts,
+                            "entry_price": lot["price"],
+                            "exit_price": fill_price,
+                            "quantity": matched_qty,
+                            "pnl": round(trade_pnl, 2),
+                            "pnl_net": round(trade_pnl_net, 2),
+                            "return_pct": round(ret_pct, 4),
+                            "fees": round(fee_share, 2),
+                            "slippage": round(slippage_val * (matched_qty / fill_qty), 2),
+                            "exit_reason": "COVER",
+                        }
+                    )
+                    trade_counter += 1
+                    qty_to_cover -= matched_qty
+                    if matched_qty == lot["qty"]:
+                        short_lots_map[sym].pop(0)
+                    else:
+                        lot["qty"] -= matched_qty
+                        lot["fees"] -= lot["fees"] * (matched_qty / lot["qty"])
+
+                if qty_to_cover > 0:
+                    long_lots_map.setdefault(sym, []).append(
+                        {
+                            "qty": qty_to_cover,
+                            "price": fill_price,
+                            "ts": f.ts,
+                            "fees": total_fees * (qty_to_cover / fill_qty),
+                        }
+                    )
+            else:
+                long_lots_map.setdefault(sym, []).append(
+                    {"qty": fill_qty, "price": fill_price, "ts": f.ts, "fees": total_fees}
+                )
+        else:  # Sell
+            if sym in long_lots_map and long_lots_map[sym]:
+                qty_to_sell = fill_qty
+                while qty_to_sell > 0 and long_lots_map[sym]:
+                    lot = long_lots_map[sym][0]
+                    matched_qty = min(qty_to_sell, lot["qty"])
+                    fee_share = total_fees * (matched_qty / fill_qty) + lot["fees"] * (
+                        matched_qty / lot["qty"]
+                    )
+                    trade_pnl = (fill_price - lot["price"]) * matched_qty
+                    trade_pnl_net = trade_pnl - fee_share
+                    ret_pct = (
+                        (fill_price - lot["price"]) / lot["price"] if lot["price"] > 0 else 0.0
+                    )
+
+                    trade_data.append(
+                        {
+                            "trade_id": f"T{trade_counter:04d}",
+                            "symbol": sym,
+                            "direction": "LONG",
+                            "entry_time": lot["ts"],
+                            "exit_time": f.ts,
+                            "entry_price": lot["price"],
+                            "exit_price": fill_price,
+                            "quantity": matched_qty,
+                            "pnl": round(trade_pnl, 2),
+                            "pnl_net": round(trade_pnl_net, 2),
+                            "return_pct": round(ret_pct, 4),
+                            "fees": round(fee_share, 2),
+                            "slippage": round(slippage_val * (matched_qty / fill_qty), 2),
+                            "exit_reason": "SELL",
+                        }
+                    )
+                    trade_counter += 1
+                    qty_to_sell -= matched_qty
+                    if matched_qty == lot["qty"]:
+                        long_lots_map[sym].pop(0)
+                    else:
+                        lot["qty"] -= matched_qty
+                        lot["fees"] -= lot["fees"] * (matched_qty / lot["qty"])
+
+                if qty_to_sell > 0:
+                    short_lots_map.setdefault(sym, []).append(
+                        {
+                            "qty": qty_to_sell,
+                            "price": fill_price,
+                            "ts": f.ts,
+                            "fees": total_fees * (qty_to_sell / fill_qty),
+                        }
+                    )
+            else:
+                short_lots_map.setdefault(sym, []).append(
+                    {"qty": fill_qty, "price": fill_price, "ts": f.ts, "fees": total_fees}
+                )
 
     # 5. Record run in registry
     run_reg = RunRegistry(db)
@@ -280,6 +395,129 @@ def get_run_equity_curve(
             per_bucket=json.loads(pt.per_bucket) if pt.per_bucket else {},
         )
         for pt in points
+    ]
+
+
+@router.get("/{run_id}/multi-horizon", response_model=list[HorizonMetricsResponse])
+def get_run_multi_horizon_metrics(
+    run_id: str,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[HorizonMetricsResponse]:
+    """Get multi-horizon performance comparison (10Y, 5Y, 3Y, 1Y, YTD, ALL) vs S&P 500 benchmark."""
+    registry = RunRegistry(db)
+    try:
+        _ = registry.get_or_raise(run_id)
+        points = registry.get_equity_curve(run_id)
+    except RunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    if not points or len(points) < 2:
+        return []
+
+    timestamps = [pt.ts for pt in points]
+    equity_series = [float(pt.total_equity) for pt in points]
+    initial_cap = equity_series[0] if equity_series else 100_000.0
+
+    # Load trades and reconstruct fills for accurate multi-horizon duration and trade analytics
+    trades = registry.get_trades(run_id=run_id, limit=2000)
+    reconstructed_fills: list[Any] = []
+    from atlas.core.types import Fill, Side, Symbol
+
+    for tr in trades:
+        entry_side = Side.BUY if tr.direction == "LONG" else Side.SELL
+        exit_side = Side.SELL if tr.direction == "LONG" else Side.BUY
+        tr_fees = Money(Decimal(str(round(float(tr.fees), 4))), "USD")
+        slip_half = Money(Decimal(str(round(float(tr.slippage) / 2.0, 4))), "USD")
+
+        # In US equities, regulatory fees occur strictly on SELL legs (exits for longs, entries for shorts)
+        entry_fees = tr_fees if entry_side == Side.SELL else Money.zero("USD")
+        exit_fees = tr_fees if exit_side == Side.SELL else Money.zero("USD")
+
+        reconstructed_fills.append(
+            Fill(
+                order_id=f"entry_{tr.trade_id}",
+                ts=tr.entry_time,
+                qty=tr.quantity,
+                price=Decimal(str(tr.entry_price)),
+                commission=Money.zero("USD"),
+                fees=entry_fees,
+                slippage_est=slip_half,
+                venue="SIM",
+                symbol=Symbol(tr.symbol),
+                side=entry_side,
+            )
+        )
+        reconstructed_fills.append(
+            Fill(
+                order_id=f"exit_{tr.trade_id}",
+                ts=tr.exit_time,
+                qty=tr.quantity,
+                price=Decimal(str(tr.exit_price)),
+                commission=Money.zero("USD"),
+                fees=exit_fees,
+                slippage_est=slip_half,
+                venue="SIM",
+                symbol=Symbol(tr.symbol),
+                side=exit_side,
+            )
+        )
+
+    # Sort reconstructed fills strictly by timestamp for chronological FIFO replay
+    reconstructed_fills.sort(
+        key=lambda f: (
+            f.ts
+            if isinstance(f.ts, datetime)
+            else datetime.combine(f.ts, datetime.min.time(), tzinfo=UTC)
+        )
+    )
+
+    horizon_metrics = compute_multi_horizon_metrics(
+        timestamps=timestamps,
+        equity_series=equity_series,
+        initial_capital=initial_cap,
+        fills=reconstructed_fills,
+    )
+
+    return [
+        HorizonMetricsResponse(
+            horizon=hm.horizon,
+            start_date=hm.start_date,
+            end_date=hm.end_date,
+            trading_days=hm.trading_days,
+            starting_capital=hm.starting_capital,
+            ending_equity=hm.ending_equity,
+            net_profit_usd=hm.net_profit_usd,
+            strategy_return_pct=hm.strategy_return_pct,
+            strategy_cagr=hm.strategy_cagr,
+            strategy_sharpe=hm.strategy_sharpe,
+            strategy_sortino=hm.strategy_sortino,
+            strategy_max_drawdown=hm.strategy_max_drawdown,
+            strategy_calmar=hm.strategy_calmar,
+            win_rate=hm.win_rate,
+            profit_factor=hm.profit_factor,
+            total_trades=hm.total_trades,
+            benchmark_starting_equity=hm.benchmark_starting_equity,
+            benchmark_ending_equity=hm.benchmark_ending_equity,
+            benchmark_profit_usd=hm.benchmark_profit_usd,
+            benchmark_return_pct=hm.benchmark_return_pct,
+            benchmark_cagr=hm.benchmark_cagr,
+            benchmark_max_drawdown=hm.benchmark_max_drawdown,
+            alpha=hm.alpha,
+            beta=hm.beta,
+            information_ratio=hm.information_ratio,
+            tracking_error=hm.tracking_error,
+            correlation=hm.correlation,
+            avg_holding_days=hm.avg_holding_days,
+            avg_win_holding_days=hm.avg_win_holding_days,
+            avg_loss_holding_days=hm.avg_loss_holding_days,
+            total_slippage_usd=hm.total_slippage_usd,
+            total_commissions_usd=hm.total_commissions_usd,
+            total_fees_usd=hm.total_fees_usd,
+            total_frictional_drag_usd=hm.total_frictional_drag_usd,
+            gross_profit_usd=hm.gross_profit_usd,
+            frictional_drag_pct=hm.frictional_drag_pct,
+        )
+        for hm in horizon_metrics
     ]
 
 

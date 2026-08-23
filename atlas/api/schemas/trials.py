@@ -27,3 +27,4 @@ class TrialBudgetResponse(BaseModel):
     budget_remaining: int
     budget_pct_used: float
     family: str
+    is_unlimited: bool = True

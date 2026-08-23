@@ -45,9 +45,9 @@ class TrialTracker:
         return trial
 
     def get_budget_status(
-        self, family: str | None = None, weekly_budget: int = 500
+        self, family: str | None = None, weekly_budget: int = 0
     ) -> dict[str, Any]:
-        """Get total trial count, trials this week, and budget consumption."""
+        """Get total trial count, trials this week, and budget consumption (unlimited by default in v1.5)."""
         now = datetime.now(UTC)
         one_week_ago = now - timedelta(days=7)
 
@@ -61,15 +61,22 @@ class TrialTracker:
             week_stmt = week_stmt.where(Trial.family == family)
         trials_this_week = self.session.execute(week_stmt).scalar() or 0
 
-        budget_remaining = max(0, weekly_budget - trials_this_week)
-        budget_pct_used = min(1.0, trials_this_week / weekly_budget) if weekly_budget > 0 else 0.0
+        is_unlimited = weekly_budget <= 0
+        effective_budget = -1 if is_unlimited else weekly_budget
+        budget_remaining = 999_999 if is_unlimited else max(0, weekly_budget - trials_this_week)
+        budget_pct_used = (
+            0.0
+            if is_unlimited
+            else (min(1.0, trials_this_week / weekly_budget) * 100.0 if weekly_budget > 0 else 0.0)
+        )
 
         return {
             "total_trials": total_trials,
             "trials_this_week": trials_this_week,
-            "weekly_budget": weekly_budget,
+            "weekly_budget": effective_budget,
+            "is_unlimited": is_unlimited,
             "budget_remaining": budget_remaining,
-            "budget_pct_used": round(budget_pct_used * 100, 2),
+            "budget_pct_used": round(budget_pct_used, 2),
             "family": family or "all",
         }
 

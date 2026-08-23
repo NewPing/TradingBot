@@ -177,9 +177,13 @@ def compute_adjusted_series(
                         )
                 elif act_type == "DIVIDEND":
                     div_amount = _to_decimal(act.get("amount", 0.0), precision=FOUR_PLACES)
-                    if bar.close > 0 and div_amount > 0:
-                        div_factor = ((bar.close - div_amount) / bar.close).quantize(
-                            EIGHT_PLACES, rounding=ROUND_HALF_UP
+                    prev_close = sorted_bars[i - 1].close if i > 0 else bar.close
+                    if prev_close > 0 and div_amount > 0:
+                        div_factor = max(
+                            Decimal("0.00000001"),
+                            ((prev_close - div_amount) / prev_close).quantize(
+                                EIGHT_PLACES, rounding=ROUND_HALF_UP
+                            ),
                         )
                         cumulative_factor = (cumulative_factor * div_factor).quantize(
                             EIGHT_PLACES, rounding=ROUND_HALF_UP

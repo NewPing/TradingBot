@@ -26,6 +26,8 @@ from atlas.core.types import (
     Signal,
     Symbol,
 )
+from atlas.risk.limits import HardLimitsValidator
+from atlas.risk.manager import RiskManager
 from atlas.signals.indicators import compute_atr, compute_realized_volatility
 from atlas.strategies.builder import (
     build_aggregator,
@@ -85,11 +87,22 @@ class BacktestEngine:
         data: pl.DataFrame | dict[Symbol, pl.DataFrame],
         initial_capital: Money | None = None,
         cost_model: DefaultCostModelV1 | None = None,
+        risk_manager: RiskManager | None = None,
     ) -> None:
         self.spec = spec
         self.data = data
         self.initial_capital = initial_capital or Money(Decimal("100000.00"), "USD")
         self.cost_model = cost_model or build_cost_model(spec)
+        if risk_manager is None:
+            pos_pct_dec = Decimal(str(spec.policy.max_position_pct))
+            max_sym_pct = pos_pct_dec if pos_pct_dec > Decimal("0.10") else Decimal("0.10")
+            limits = HardLimitsValidator(
+                max_single_symbol_pct=max_sym_pct,
+                max_gross_exposure_pct=Decimal("1.00"),
+            )
+            self.risk_manager = RiskManager(limits_validator=limits)
+        else:
+            self.risk_manager = risk_manager
 
         # Build signal providers, aggregator, policy
         self.signal_providers = [
@@ -173,22 +186,42 @@ class BacktestEngine:
 
             current_bars: dict[Symbol, Bar] = {}
             daily_vols: dict[Symbol, Decimal] = {}
+            annualized_vols: dict[Symbol, Decimal] = {}
             advs: dict[Symbol, Decimal] = {}
+            atrs: dict[Symbol, Decimal] = {}
 
             for sym in symbols:
                 bar = context.latest(sym)
                 if bar is not None and bar.ts.date() == current_day:
                     current_bars[sym] = bar
-                    # Compute realized vol and ADV
-                    hist = context.bars(sym, lookback=21)
+                    # Compute realized vol, ATR, and ADV with standardized warmup lookback
+                    hist = context.bars(sym, lookback=max(100, self.spec.stop.atr_period * 5))
                     if len(hist) >= 5:
                         closes = hist["close"].to_numpy()
                         v = compute_realized_volatility(closes, period=min(20, len(hist) - 1))
                         if v is not None:
-                            daily_vols[sym] = Decimal(str(v))
+                            annualized_vols[sym] = Decimal(str(v))
+                            daily_vols[sym] = Decimal(str(v / (252.0**0.5)))
                         vols = hist["volume"].to_numpy()
                         mean_vol = float(vols.mean())
                         advs[sym] = Decimal(str(mean_vol * float(bar.close)))
+                    if len(hist) >= self.spec.stop.atr_period:
+                        atr_val = compute_atr(
+                            highs=hist["high"].to_numpy(),
+                            lows=hist["low"].to_numpy(),
+                            closes=hist["close"].to_numpy(),
+                            period=self.spec.stop.atr_period,
+                        )
+                        if atr_val is not None and atr_val > 0.0:
+                            atrs[sym] = Decimal(str(atr_val))
+
+            # Mark-to-market unrealized on existing positions for accurate session baseline
+            broker.update_positions_unrealized(current_bars)
+            account_curr = broker.account()
+            self.risk_manager.kill_switches.new_session(account_curr.total_equity.amount)
+            self.risk_manager.order_counts_today = dict.fromkeys(
+                self.risk_manager.order_counts_today.keys(), 0
+            )
 
             # 2. Process yesterday's pending orders (Fills on t+1 bar)
             broker.process_pending_orders(
@@ -198,7 +231,7 @@ class BacktestEngine:
                 advs=advs,
             )
 
-            # 3. Process stop-losses on current bar
+            # 3. Process stop-losses on current bar against established stop_px from prior session
             broker.process_stops(
                 current_ts=session_ts,
                 current_bars=current_bars,
@@ -206,10 +239,27 @@ class BacktestEngine:
                 advs=advs,
             )
 
-            # 4. Update mark-to-market unrealized PnL
-            broker.update_positions_unrealized(current_bars)
+            # 4. Ratchet trailing stops at end-of-session on held positions for next session
+            if self.spec.stop.type == "atr_trailing":
+                broker.update_trailing_stops(
+                    current_bars=current_bars,
+                    atrs=atrs,
+                    atr_multiple=self.spec.stop.multiple,
+                )
 
-            # 5. Check if today is a rebalance day
+            # 5. Apply overnight short borrow fees and idle cash yield
+            broker.apply_daily_carry(
+                current_bars=current_bars,
+                borrow_rate_annual=self.cost_model.borrow_rate_annual,
+                cash_yield_annual=self.cost_model.cash_yield_annual,
+            )
+
+            # 5. Update mark-to-market unrealized PnL & Risk Manager equity check
+            broker.update_positions_unrealized(current_bars)
+            account = broker.account()
+            self.risk_manager.on_equity_update(account.total_equity, now=session_ts)
+
+            # 6. Check if today is a rebalance day
             if self._should_rebalance(current_day, trading_days, idx, has_rebalanced_once):
                 has_rebalanced_once = True
                 composite_signals: dict[Symbol, Signal] = {}
@@ -237,7 +287,7 @@ class BacktestEngine:
                     current_prices=current_prices,
                     total_equity=account.total_equity,
                     available_cash=account.cash,
-                    realized_vols=daily_vols,
+                    realized_vols=annualized_vols,
                 )
 
                 # Generate orders for deltas between current and target
@@ -257,23 +307,51 @@ class BacktestEngine:
                     side = Side.BUY if delta_qty > 0 else Side.SELL
                     qty_to_trade = abs(delta_qty)
 
-                    # Compute stop price if stop config enabled
+                    # Check kill switches before entering new risk
+                    if not self.risk_manager.kill_switches.allows_entries(self.spec.bucket) and (
+                        (side == Side.BUY and curr_qty >= 0)
+                        or (side == Side.SELL and curr_qty <= 0)
+                    ):
+                        continue
+
+                    # Compute stop price if stop config enabled (long and short awareness)
                     stop_px: Decimal | None = None
-                    if side == Side.BUY and self.spec.stop.type == "atr_trailing":
-                        hist = context.bars(sym, lookback=self.spec.stop.atr_period + 5)
-                        if len(hist) >= self.spec.stop.atr_period:
-                            atr_val = compute_atr(
-                                highs=hist["high"].to_numpy(),
-                                lows=hist["low"].to_numpy(),
-                                closes=hist["close"].to_numpy(),
-                                period=self.spec.stop.atr_period,
+                    if target_qty > 0 and delta_qty > 0:  # Long entry or position increase
+                        if self.spec.stop.type == "atr_trailing":
+                            hist = context.bars(
+                                sym, lookback=max(100, self.spec.stop.atr_period * 5)
                             )
-                            if atr_val is not None and atr_val > 0.0:
-                                stop_distance = Decimal(str(atr_val * self.spec.stop.multiple))
-                                stop_px = max(Decimal("0.01"), bar.close - stop_distance)
-                    elif side == Side.BUY and self.spec.stop.type == "hard_pct":
-                        pct_down = Decimal(str(self.spec.stop.pct))
-                        stop_px = bar.close * (Decimal("1.0") - pct_down)
+                            if len(hist) >= self.spec.stop.atr_period:
+                                atr_val = compute_atr(
+                                    highs=hist["high"].to_numpy(),
+                                    lows=hist["low"].to_numpy(),
+                                    closes=hist["close"].to_numpy(),
+                                    period=self.spec.stop.atr_period,
+                                )
+                                if atr_val is not None and atr_val > 0.0:
+                                    stop_distance = Decimal(str(atr_val * self.spec.stop.multiple))
+                                    stop_px = max(Decimal("0.01"), bar.close - stop_distance)
+                        elif self.spec.stop.type == "hard_pct":
+                            pct_down = Decimal(str(self.spec.stop.pct))
+                            stop_px = bar.close * (Decimal("1.0") - pct_down)
+                    elif target_qty < 0 and delta_qty < 0:  # Short entry or position increase
+                        if self.spec.stop.type == "atr_trailing":
+                            hist = context.bars(
+                                sym, lookback=max(100, self.spec.stop.atr_period * 5)
+                            )
+                            if len(hist) >= self.spec.stop.atr_period:
+                                atr_val = compute_atr(
+                                    highs=hist["high"].to_numpy(),
+                                    lows=hist["low"].to_numpy(),
+                                    closes=hist["close"].to_numpy(),
+                                    period=self.spec.stop.atr_period,
+                                )
+                                if atr_val is not None and atr_val > 0.0:
+                                    stop_distance = Decimal(str(atr_val * self.spec.stop.multiple))
+                                    stop_px = bar.close + stop_distance
+                        elif self.spec.stop.type == "hard_pct":
+                            pct_up = Decimal(str(self.spec.stop.pct))
+                            stop_px = bar.close * (Decimal("1.0") + pct_up)
 
                     order = Order(
                         id=f"ord_{sym}_{session_ts.strftime('%Y%m%d')}_{uuid.uuid4().hex[:6]}",
@@ -289,6 +367,20 @@ class BacktestEngine:
                         stop_px=stop_px,
                         status=OrderStatus.NEW,
                     )
+
+                    # Centralized risk validation enforcing parity with live OMS
+                    try:
+                        current_ledger = broker.to_ledger(current_prices)
+                        self.risk_manager.validate_order(
+                            order=order,
+                            ledger=current_ledger,
+                            current_prices=current_prices,
+                            symbol_adv=advs,
+                            is_simulated=True,
+                        )
+                    except Exception:
+                        continue
+
                     broker.submit(order)
                     all_orders.append(order)
 
@@ -329,11 +421,13 @@ class BacktestEngine:
 
         # Compute full performance metrics
         equity_values = [s.equity for s in daily_snapshots]
+        snap_ts = [s.ts for s in daily_snapshots]
         metrics = compute_metrics(
             equity_series=equity_values,
             initial_capital=float(self.initial_capital.amount),
             fills=broker.fills,
             benchmark_equity=bm_equity,
+            timestamps=snap_ts,
         )
 
         final_eq = Money(

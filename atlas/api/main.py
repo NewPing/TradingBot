@@ -20,7 +20,9 @@ from atlas.api.routers import (
     research,
     risk,
     runs,
+    shadow,
     signals,
+    taxes,
     trials,
     versions,
 )
@@ -89,6 +91,8 @@ app.include_router(models.router)
 app.include_router(fundamentals.router)
 app.include_router(news.router)
 app.include_router(research.router)
+app.include_router(taxes.router)
+app.include_router(shadow.router)
 
 
 @app.websocket("/api/v1/ws/live")

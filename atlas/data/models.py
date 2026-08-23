@@ -680,3 +680,150 @@ class HoldoutAccessLog(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
     )
+
+
+class ECBExchangeRate(Base):
+    """Daily European Central Bank (ECB) official currency reference rates (Phase 9)."""
+
+    __tablename__ = "ecb_exchange_rates"
+    __table_args__ = (
+        PrimaryKeyConstraint("rate_date", "base_currency", "target_currency"),
+        Index("ix_ecb_rates_date", "rate_date"),
+    )
+
+    rate_date: Mapped[date] = mapped_column(Date, nullable=False)
+    base_currency: Mapped[str] = mapped_column(String(8), nullable=False, default="EUR")
+    target_currency: Mapped[str] = mapped_column(String(8), nullable=False, default="USD")
+    rate: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class TaxLot(Base):
+    """Individual tax lot tracked strictly by First-In-First-Out (FIFO) under § 20 EStG (Phase 9)."""
+
+    __tablename__ = "tax_lots"
+    __table_args__ = (
+        Index("ix_tax_lots_symbol", "symbol"),
+        Index("ix_tax_lots_status", "status"),
+        Index("ix_tax_lots_buy_date", "buy_date"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    asset_category: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="AKTIEN"
+    )  # AKTIEN | SONSTIGE
+    buy_fill_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    buy_date: Mapped[date] = mapped_column(Date, nullable=False)
+    buy_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    quantity_initial: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    quantity_remaining: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    buy_price_usd: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    buy_fx_rate_eur_usd: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    buy_price_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    total_cost_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    commission_eur: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0.0")
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="OPEN"
+    )  # OPEN | PARTIAL | CLOSED
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class TaxEvent(Base):
+    """Realized capital gain/loss taxable transaction with KESt and Solidaritätszuschlag (Phase 9)."""
+
+    __tablename__ = "tax_events"
+    __table_args__ = (
+        Index("ix_tax_events_symbol", "symbol"),
+        Index("ix_tax_events_tax_lot_id", "tax_lot_id"),
+        Index("ix_tax_events_sell_date", "sell_date"),
+        Index("ix_tax_events_tax_year", "tax_year"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tax_lot_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tax_lots.id"), nullable=False
+    )
+    sell_fill_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    asset_category: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="AKTIEN"
+    )  # AKTIEN | SONSTIGE
+    tax_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    sell_date: Mapped[date] = mapped_column(Date, nullable=False)
+    sell_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    quantity: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    buy_price_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    sell_price_usd: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    sell_fx_rate_eur_usd: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    sell_price_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    proceeds_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    cost_basis_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    commission_eur: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0.0")
+    )
+    gain_loss_eur: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    is_gain: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    kest_amount_eur: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0.0")
+    )
+    soli_amount_eur: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0.0")
+    )
+    kirchensteuer_eur: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0.0")
+    )
+    total_tax_eur: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0.0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class ShadowExecutionLog(Base):
+    """Real-time tick-by-tick shadow trade execution & slippage telemetry (Phase 9)."""
+
+    __tablename__ = "shadow_execution_logs"
+    __table_args__ = (
+        Index("ix_shadow_logs_run_id", "run_id"),
+        Index("ix_shadow_logs_symbol", "symbol"),
+        Index("ix_shadow_logs_timestamp", "timestamp"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)
+    quantity: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    model_price_usd: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    broker_bid_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    broker_ask_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    broker_mid_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    simulated_fill_price_usd: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    slippage_bps: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), nullable=False, default=Decimal("0.0")
+    )
+    quote_latency_ms: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, default=Decimal("0.0")
+    )
+    routing_venue: Mapped[str] = mapped_column(String(32), nullable=False, default="SHADOW_SIM")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )

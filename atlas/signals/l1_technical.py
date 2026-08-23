@@ -31,10 +31,12 @@ class TrendFilterSignalProvider:
     ma_type: str = "sma"  # "sma" or "ema"
 
     def warmup_bars(self) -> int:
+        if self.ma_type.lower() == "ema":
+            return max(self.ma_period + 50, self.ma_period * 2)
         return self.ma_period + 5
 
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
-        df = ctx.bars(symbol, lookback=self.warmup_bars())
+        df = ctx.bars(symbol, lookback=self.warmup_bars(), adjusted=True)
         if df.is_empty() or len(df) < self.ma_period:
             return None
 
@@ -80,11 +82,11 @@ class MomentumSignalProvider:
     skip: int = 21
 
     def warmup_bars(self) -> int:
-        return self.lookback + self.skip + 10
+        return self.lookback + 10
 
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
-        df = ctx.bars(symbol, lookback=self.warmup_bars())
-        if df.is_empty() or len(df) < self.lookback + self.skip + 1:
+        df = ctx.bars(symbol, lookback=self.warmup_bars(), adjusted=True)
+        if df.is_empty() or len(df) < self.lookback + 1:
             return None
 
         closes = df["close"].to_numpy().astype(np.float64)
@@ -126,7 +128,7 @@ class RsiSignalProvider:
         return self.period + 30
 
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
-        df = ctx.bars(symbol, lookback=self.warmup_bars())
+        df = ctx.bars(symbol, lookback=self.warmup_bars(), adjusted=True)
         if df.is_empty() or len(df) < self.period + 5:
             return None
 
@@ -185,7 +187,7 @@ class MacdSignalProvider:
         return self.slow_period + self.signal_period + 20
 
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
-        df = ctx.bars(symbol, lookback=self.warmup_bars())
+        df = ctx.bars(symbol, lookback=self.warmup_bars(), adjusted=True)
         if df.is_empty() or len(df) < self.slow_period + self.signal_period:
             return None
 
@@ -201,8 +203,9 @@ class MacdSignalProvider:
 
         macd_line, sig_line, hist = macd_res
         current_close = float(closes[-1])
-        # Normalized histogram by price
-        norm_hist = hist / current_close if current_close > 0 else 0.0
+        # Normalized histogram by price with lower bound clamping to prevent penny stock explosion
+        denom = max(1.0, current_close)
+        norm_hist = hist / denom if current_close > 0 else 0.0
         score = float(np.tanh(norm_hist * 100.0))
         confidence = float(min(1.0, max(0.3, abs(score))))
 
@@ -237,7 +240,7 @@ class BollingerSignalProvider:
         return self.period + 10
 
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
-        df = ctx.bars(symbol, lookback=self.warmup_bars())
+        df = ctx.bars(symbol, lookback=self.warmup_bars(), adjusted=True)
         if df.is_empty() or len(df) < self.period:
             return None
 
@@ -288,12 +291,14 @@ class FiftyTwoWeekSignalProvider:
         return self.period + 10
 
     def evaluate(self, ctx: MarketContext, symbol: Symbol) -> Signal | None:
-        df = ctx.bars(symbol, lookback=self.warmup_bars())
+        df = ctx.bars(symbol, lookback=self.warmup_bars(), adjusted=True)
         if df.is_empty() or len(df) < self.period:
             return None
 
         closes = df["close"].to_numpy().astype(np.float64)
-        pos = compute_52w_position(closes, period=self.period)
+        highs = df["high"].to_numpy().astype(np.float64) if "high" in df.columns else None
+        lows = df["low"].to_numpy().astype(np.float64) if "low" in df.columns else None
+        pos = compute_52w_position(closes, period=self.period, highs=highs, lows=lows)
         if pos is None:
             return None
 

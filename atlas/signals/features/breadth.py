@@ -8,6 +8,7 @@ import numpy as np
 
 from atlas.core.context import MarketContext
 from atlas.core.types import Symbol
+from atlas.signals.indicators import compute_rsi
 
 
 class MarketBreadthCalculator:
@@ -71,18 +72,11 @@ class MarketBreadthCalculator:
                 if closes[-1] > sma200:
                     above_200 += 1
 
-            # Approximate RSI 14
+            # Standard Wilder RSI 14
             if n >= 15:
-                diffs = [closes[i] - closes[i - 1] for i in range(n - 14, n)]
-                gains = [d for d in diffs if d > 0]
-                losses = [abs(d) for d in diffs if d < 0]
-                avg_g = sum(gains) / 14.0
-                avg_l = sum(losses) / 14.0
-                if avg_l < 1e-8:
-                    rsi = 100.0 if avg_g > 0 else 50.0
-                else:
-                    rsi = 100.0 - (100.0 / (1.0 + (avg_g / avg_l)))
-                rsi_vals.append(rsi)
+                rsi = compute_rsi(closes, period=14)
+                if rsi is not None:
+                    rsi_vals.append(rsi)
 
         total_pairs = advances + declines
         ad_ratio = (advances / total_pairs) if total_pairs > 0 else 0.5

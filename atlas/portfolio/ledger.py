@@ -131,6 +131,7 @@ class BucketLedger:
         """Process an execution fill against the designated isolated bucket sub-account with long/short support."""
         account = self.accounts[bucket]
         fill_cost = Money(fill.price * fill.qty, self.currency)
+        fill_fees = fill.commission + fill.fees
 
         account.total_commission_paid = account.total_commission_paid + fill.commission
         account.total_fees_paid = account.total_fees_paid + fill.fees
@@ -154,11 +155,22 @@ class BucketLedger:
                     )
                 account.cash = account.cash - cover_outlay
 
-                # Short realized P&L: (entry price - exit price) * covered_qty - fees
+                entry_fee_share = (
+                    existing.open_fees.amount * (Decimal(cover_qty) / Decimal(short_qty_held))
+                    if existing.open_fees.amount > Decimal("0")
+                    else Decimal("0")
+                )
+                close_fee_share = (
+                    fill_fees.amount * (Decimal(cover_qty) / Decimal(fill.qty))
+                    if fill.qty > 0
+                    else fill_fees.amount
+                )
+
+                # Short realized P&L: (entry price - exit price) * covered_qty - entry_fees - close_fees
                 short_pnl = (
                     Money((existing.avg_price - fill.price) * Decimal(cover_qty), self.currency)
-                    - fill.commission
-                    - fill.fees
+                    - Money(entry_fee_share, self.currency)
+                    - Money(close_fee_share, self.currency)
                 )
                 account.realized_pnl = account.realized_pnl + short_pnl
 
@@ -174,6 +186,11 @@ class BucketLedger:
                                 f"Bucket {bucket} cash insufficient for excess long entry"
                             )
                         account.cash = account.cash - long_outlay
+                        excess_long_open_fees = (
+                            fill_fees * (Decimal(excess_long) / Decimal(fill.qty))
+                            if fill.qty > 0
+                            else fill_fees
+                        )
                         new_long = Position(
                             symbol=symbol,
                             bucket=bucket,
@@ -183,11 +200,13 @@ class BucketLedger:
                             unrealized=Money.zero(self.currency),
                             realized=Money.zero(self.currency),
                             stop_px=stop_px,
+                            open_fees=excess_long_open_fees,
                         )
                         account.positions[symbol] = new_long
                         return new_long
                     return None
                 else:
+                    rem_open_fees = existing.open_fees - Money(entry_fee_share, self.currency)
                     updated_pos = Position(
                         symbol=symbol,
                         bucket=bucket,
@@ -197,6 +216,7 @@ class BucketLedger:
                         unrealized=Money.zero(self.currency),
                         realized=existing.realized + short_pnl,
                         stop_px=stop_px or existing.stop_px,
+                        open_fees=rem_open_fees,
                     )
                     account.positions[symbol] = updated_pos
                     return updated_pos
@@ -225,6 +245,7 @@ class BucketLedger:
                         unrealized=existing.unrealized,
                         realized=existing.realized,
                         stop_px=stop_px or existing.stop_px,
+                        open_fees=existing.open_fees + fill_fees,
                     )
                     account.positions[symbol] = updated_pos
                     return updated_pos
@@ -238,6 +259,7 @@ class BucketLedger:
                         unrealized=Money.zero(self.currency),
                         realized=Money.zero(self.currency),
                         stop_px=stop_px,
+                        open_fees=fill_fees,
                     )
                     account.positions[symbol] = new_pos
                     return new_pos
@@ -253,11 +275,22 @@ class BucketLedger:
                 )
                 account.cash = account.cash + proceeds
 
-                cost_basis = fill.price - existing.avg_price
+                entry_fee_share = (
+                    existing.open_fees.amount * (Decimal(sold_qty) / Decimal(existing.qty))
+                    if existing.open_fees.amount > Decimal("0")
+                    else Decimal("0")
+                )
+                close_fee_share = (
+                    fill_fees.amount * (Decimal(sold_qty) / Decimal(fill.qty))
+                    if fill.qty > 0
+                    else fill_fees.amount
+                )
+
+                price_gain = fill.price - existing.avg_price
                 chunk_pnl = (
-                    Money(cost_basis * Decimal(sold_qty), self.currency)
-                    - fill.commission
-                    - fill.fees
+                    Money(price_gain * Decimal(sold_qty), self.currency)
+                    - Money(entry_fee_share, self.currency)
+                    - Money(close_fee_share, self.currency)
                 )
                 account.realized_pnl = account.realized_pnl + chunk_pnl
 
@@ -269,6 +302,11 @@ class BucketLedger:
                     if excess_short > 0 and allow_short and bucket == BucketId.SWING:
                         short_proceeds = Money(fill.price * Decimal(excess_short), self.currency)
                         account.cash = account.cash + short_proceeds
+                        excess_short_open_fees = (
+                            fill_fees * (Decimal(excess_short) / Decimal(fill.qty))
+                            if fill.qty > 0
+                            else fill_fees
+                        )
                         new_short = Position(
                             symbol=symbol,
                             bucket=bucket,
@@ -278,11 +316,13 @@ class BucketLedger:
                             unrealized=Money.zero(self.currency),
                             realized=Money.zero(self.currency),
                             stop_px=stop_px,
+                            open_fees=excess_short_open_fees,
                         )
                         account.positions[symbol] = new_short
                         return new_short
                     return None
                 else:
+                    rem_open_fees = existing.open_fees - Money(entry_fee_share, self.currency)
                     updated_pos = Position(
                         symbol=symbol,
                         bucket=bucket,
@@ -292,6 +332,7 @@ class BucketLedger:
                         unrealized=existing.unrealized,
                         realized=existing.realized + chunk_pnl,
                         stop_px=existing.stop_px,
+                        open_fees=rem_open_fees,
                     )
                     account.positions[symbol] = updated_pos
                     return updated_pos
@@ -316,6 +357,7 @@ class BucketLedger:
                         unrealized=existing.unrealized,
                         realized=existing.realized,
                         stop_px=stop_px or existing.stop_px,
+                        open_fees=existing.open_fees + fill_fees,
                     )
                     account.positions[symbol] = updated_pos
                     return updated_pos
@@ -329,6 +371,7 @@ class BucketLedger:
                         unrealized=Money.zero(self.currency),
                         realized=Money.zero(self.currency),
                         stop_px=stop_px,
+                        open_fees=fill_fees,
                     )
                     account.positions[symbol] = new_short
                     return new_short
@@ -416,6 +459,7 @@ class BucketLedger:
                             "avg_price": str(pos.avg_price),
                             "opened_ts": pos.opened_ts.isoformat(),
                             "stop_px": str(pos.stop_px) if pos.stop_px is not None else None,
+                            "open_fees": str(pos.open_fees.amount),
                         }
                         for sym, pos in acc.positions.items()
                     },
@@ -443,6 +487,7 @@ class BucketLedger:
                 opened_ts = datetime.fromisoformat(p_data["opened_ts"])
                 if opened_ts.tzinfo is None:
                     opened_ts = opened_ts.replace(tzinfo=UTC)
+                open_fees_val = Money(Decimal(p_data.get("open_fees", "0.0000")), currency)
                 pos = Position(
                     symbol=Symbol(p_data["symbol"]),
                     bucket=b_id,
@@ -452,6 +497,7 @@ class BucketLedger:
                     unrealized=Money.zero(currency),
                     realized=Money.zero(currency),
                     stop_px=Decimal(p_data["stop_px"]) if p_data.get("stop_px") else None,
+                    open_fees=open_fees_val,
                 )
                 acc.positions[Symbol(sym_str)] = pos
         return ledger

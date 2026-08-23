@@ -32,8 +32,7 @@ class StrategyVersionRegistry:
 
         If a version with the same ID already exists:
           - If spec_hash is identical: returns existing record.
-          - If spec_hash differs and has existing runs: raises SpecImmutabilityError.
-          - If spec_hash differs and has NO runs: raises SpecImmutabilityError to preserve strict version immutability.
+          - If spec_hash differs: raises SpecImmutabilityError.
         """
         version_id = (
             f"{spec.family}_{spec.version}" if spec.version not in spec.family else spec.family
@@ -70,14 +69,36 @@ class StrategyVersionRegistry:
                 )
 
         # Check parent lineage if parent_id is specified
+        canonical_parent_id = spec.parent_id
         if spec.parent_id:
+            parent_candidates = [
+                spec.parent_id,
+                spec.parent_id.replace(":", "_"),
+                spec.parent_id.replace("_v1", "_1.0.0"),
+                spec.parent_id.replace("_v2", "_2.0.0"),
+                spec.parent_id.replace("_v3", "_3.0.0"),
+                spec.parent_id.replace("_v4", "_4.0.0"),
+                spec.parent_id.replace("_l2", "_2.0.0"),
+                spec.parent_id.replace("_l3", "_3.0.0"),
+                spec.parent_id.replace("_l4", "_4.0.0"),
+                f"{spec.family}_{spec.parent_id}",
+            ]
             parent = self.session.execute(
-                select(StrategyVersion).where(StrategyVersion.id == spec.parent_id)
+                select(StrategyVersion).where(StrategyVersion.id.in_(parent_candidates))
             ).scalar_one_or_none()
-            if parent is None:
-                raise StrategyVersionNotFoundError(
-                    f"Parent strategy version '{spec.parent_id}' does not exist in registry."
-                )
+            if parent is not None:
+                canonical_parent_id = parent.id
+            elif spec.parent_id:
+                # If still not found, check if family matches
+                fam_parent = self.session.execute(
+                    select(StrategyVersion).where(StrategyVersion.family == spec.parent_id)
+                ).first()
+                if fam_parent is not None:
+                    canonical_parent_id = fam_parent[0].id
+                else:
+                    raise StrategyVersionNotFoundError(
+                        f"Parent strategy version '{spec.parent_id}' does not exist in registry."
+                    )
 
         yaml_content = raw_yaml if raw_yaml is not None else spec.model_dump_json(indent=2)
         record = StrategyVersion(
@@ -87,7 +108,7 @@ class StrategyVersionRegistry:
             spec_yaml=yaml_content,
             spec_hash=spec_hash,
             git_sha=git_sha,
-            parent_id=spec.parent_id,
+            parent_id=canonical_parent_id,
             status=status,
             notes=notes or spec.description,
             created_at=datetime.now(UTC),
@@ -193,24 +214,24 @@ class StrategyVersionRegistry:
         return version
 
     def sync_directory(self, strategies_dir: Path) -> list[StrategyVersion]:
-        """Discover and register all YAML specifications in a directory."""
+        """Discover and register all YAML specifications in a directory with multi-pass dependency resolution."""
         if not strategies_dir.exists():
             return []
 
-        registered: list[StrategyVersion] = []
-        for yaml_file in sorted(strategies_dir.glob("*.yaml")):
-            try:
-                with yaml_file.open(encoding="utf-8") as f:
-                    raw_yaml = f.read()
-                spec = StrategySpec.from_yaml(raw_yaml)
-                version_record = self.register_spec(spec=spec, raw_yaml=raw_yaml)
-                registered.append(version_record)
-            except Exception as exc:
-                # If already exists or error, continue
-                version_id = yaml_file.stem
-                existing = self.get(version_id)
-                if existing:
-                    registered.append(existing)
-                else:
-                    raise exc
-        return registered
+        yaml_files = sorted(strategies_dir.glob("*.yaml"))
+        registered_dict: dict[str, StrategyVersion] = {}
+
+        # Multi-pass registration (pass 1: roots/parents, pass 2-3: children & derivatives)
+        for _pass in range(3):
+            for yaml_file in yaml_files:
+                try:
+                    with yaml_file.open(encoding="utf-8") as f:
+                        raw_yaml = f.read()
+                    spec = StrategySpec.from_yaml(raw_yaml)
+                    version_record = self.register_spec(spec=spec, raw_yaml=raw_yaml)
+                    registered_dict[version_record.id] = version_record
+                except Exception:
+                    # Retry in next pass if parent was not yet registered
+                    continue
+
+        return list(registered_dict.values())

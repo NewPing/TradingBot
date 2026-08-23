@@ -73,11 +73,14 @@ class CrossSectionalRanker:
             if n >= 22 and closes[-22] > 0:
                 raw_mom_1m[sym] = (closes[-1] - closes[-22]) / closes[-22]
 
-            # 12m-1m momentum (252 to 21 bars ago)
+            # 12m-1m momentum (252 to 21 bars ago, damped for shorter histories)
             if n >= 253 and closes[-253] > 0:
                 raw_mom_12m[sym] = (closes[-22] - closes[-253]) / closes[-253]
             elif n >= 63 and closes[0] > 0:
-                raw_mom_12m[sym] = (closes[-22] - closes[0]) / closes[0]
+                elapsed_days = max(1, n - 22)
+                cum_ret = (closes[-22] - closes[0]) / closes[0]
+                # Linear scaling with sample size square-root damping to prevent short-history distortion
+                raw_mom_12m[sym] = float(cum_ret * ((elapsed_days / 231.0) ** 0.5))
 
             # 21d realized vol
             if n >= 22:

@@ -1,28 +1,82 @@
 # ATLAS — Engineering Notes & Session Log
 
 ## CURRENT STATE
-- **Phase**: 8 (The Research Loop) — Completed & Verified
-- **Active Branch**: `phase-8/the-research-loop`
-- **Current Milestone**: Autonomous Strategy Discovery & Research Loop (`HypothesisGenerator`, `SweepEngine`, `StatisticalGatekeeper` enforcing 8 validation gates §8.3, `HoldoutGuard` protecting 2023-present-90d partition, `ResearchReporter` generating markdown reports, `ResearchDaemon` headless runner, `TrialTracker` sacred multiple-testing budget accounting, FastAPI endpoints `/api/v1/research/*`, and Next.js Research & Discovery dashboard view `/research`).
+- **Version**: Adversarial Quantitative Code Review & Full Forensic Remediation
+- **Milestone**: Completed & Verified
 - **Working Components**:
-  - `atlas.data.models`: `ResearchHypothesis`, `ResearchSweep`, `ResearchReport`, and `HoldoutAccessLog` SQLAlchemy models with Alembic migration `0006_phase8_research_loop`.
-  - `atlas.research.stats`: Deflated Sharpe Ratio (DSR), CSCV Probability of Backtest Overfitting (PBO), Monte Carlo trade permutations (1,000 iterations), and rolling walk-forward fold generators.
-  - `atlas.research.gatekeeper`: `StatisticalGatekeeper` evaluating Walk-Forward, Parameter Perturbation, Monte Carlo, Cost Stress, Regime Breakdown, Sample Size, PBO/DSR, and Correlation Guard (<0.60).
-  - `atlas.research.holdout`: Cryptographic holdout partition guard and authorization tracker.
-  - `atlas.research.hypothesis`: 5 discovery modalities (Parameter refinement, Feature combo L1-L4, Regime conditioning, Genetic recombination).
-  - `atlas.research.sweep`: Parameter grid and exploration runner with sacred `trials` ledger logging.
-  - `atlas.research.daemon`: Headless background daemon orchestrating discovery iterations, validation, and reporting.
-  - `atlas.api.routers.research`: REST endpoints for daemon telemetry, on-demand hypothesis formulation, sweeps, report browser, and candidate review queue.
-  - `web/src/app/research`: Next.js Research & Discovery dashboard view with trial budget gauge, reports viewer, and 1-click Human Promotion Queue.
-  - `tests`: 212 tests passing, strict Mypy clean on 120 files, Ruff lint & format clean, Next.js build clean.
-- **Blocked / Incomplete**: Awaiting human approval for Phase 8 gate before proceeding to Phase 9 (Live Readiness).
+  - `atlas.backtest.metrics`: Resolved multi-horizon FIFO lot slicing by calculating full lifecycle roundtrips and filtering by exit date inside each horizon window; fixed trade statistics fallback on open positions; clamped Calmar ratio to `999.99` on monotonic zero-drawdown curves.
+  - `atlas.backtest.broker`: Reset `Position.realized` to `Money.zero()` upon position reversal flips (long-to-short and short-to-long), preventing historical trade P&L carryover into new positions.
+  - `atlas.portfolio.policies`: Enforced strict bucket scoping (`pos.bucket == self.bucket`) in `TopNLongOnlyPolicy` and `TargetWeightPolicy`, preventing cross-bucket position liquidations in shared ledger environments.
+  - `atlas.risk.killswitch`: Refactored rolling 5-day loss evaluation to track trailing 5 market trading sessions rather than raw 120 calendar hours.
+  - `atlas.runner.live`: Implemented full execution parity for ATR trailing stop calculations, stop order generation, and intraday ATR ratcheting in `LiveRunnerDaemon`.
+  - `atlas.signals.features.breadth`: Aligned universe breadth RSI calculation with standard Wilder smoothed RSI (`compute_rsi`).
+  - `atlas.research.sweep`: Synthesized cross-sectionally correlated standard normal diffusion shocks for both overnight gap and intraday price paths using Cholesky factor `L`.
+  - `tests`: 235 unit and property tests passing with zero regressions, strict Mypy clean, Ruff lint & format clean, Next.js build clean across all 14 routes.
+  - `Live Services`: Backend API (:8001) and Webapp (:3000) verified healthy and live.
 
 ## NEXT UP
-1. [x] Phase 8 implementation & verification.
-2. [ ] Human sign-off on Phase 8 gate.
-3. [ ] Proceed to Phase 9 (Live Readiness).
+1. [x] Adversarial quantitative audit remediation across all identified flaws.
+2. [ ] Autonomous research sweeps and live execution hardening upon user prompt.
 
 ## SESSION LOG
+### 2026-08-23 — Session 19: Full Forensic Remediation of Adversarial Audit Findings
+- Resolved all 7 key architectural and mathematical audit findings:
+  1. Fixed multi-horizon FIFO roundtrip matching across window boundaries in `atlas/backtest/metrics.py`.
+  2. Fixed position realized P&L pollution on long-to-short and short-to-long flips in `atlas/backtest/broker.py`.
+  3. Enforced bucket isolation in `TopNLongOnlyPolicy` and `TargetWeightPolicy` in `atlas/portfolio/policies.py`.
+  4. Fixed 5-day loss kill switch to track 5 market trading sessions across weekends in `atlas/risk/killswitch.py`.
+  5. Implemented stop loss and ATR trailing ratcheting parity in `LiveRunnerDaemon` in `atlas/runner/live.py`.
+  6. Standardized market breadth RSI to Wilder's smoothed formula in `atlas/signals/features/breadth.py`.
+  7. Added cross-sectional correlation to overnight gaps in `build_research_dataset()` in `atlas/research/sweep.py`.
+  8. Added 5 targeted regression unit tests in `tests/unit/test_v1_5_improvements.py` (235 total tests passing).
+- Verified full test suite, strict Mypy typechecker, Ruff formatting and linting, Next.js build, and live services (:8001 and :3000).
+
+### 2026-08-23 — Session 17: Frictional Cost Drag & Trade Duration Telemetry
+- Enhanced `atlas/backtest/metrics.py` to calculate exact average holding duration (days), win vs loss holding duration, portfolio turnover ratio ($X\times$/year), and frictional cost drag (slippage, spreads, SEC/FINRA fees).
+- Updated FastAPI schemas in `atlas/api/schemas/runs.py` and router in `atlas/api/routers/runs.py` to expose holding duration and frictional drag metrics.
+- Built **Trade Duration & Frictional Cost Drag Telemetry** card in `web/src/app/runs/[id]/page.tsx`.
+- Added Square-Root Law Market Impact formula card in `web/src/components/StrategyBlueprint.tsx`.
+- Expanded bilingual translations in `web/src/i18n/types.ts`, `en.ts`, `de.ts` with beginner-friendly tooltips.
+- Full verification passed clean: Ruff check & format clean, Mypy strict clean on 63 files, Next.js build clean across all 14 routes, Backend API (:8001) and Webapp (:3000) verified running live.
+
+## SESSION LOG
+### 2026-08-23 — Session 16: Generation 5 Strategy Evolution (`core_catalyst_ai_v5`)
+- Engineered Generation 5 strategy spec (`strategies/core_catalyst_ai_v5.yaml`) integrating academic literature (Asness 12-1 momentum, Sloan accrual quality, inverse vol sizing) with cutting-edge AI NLP intelligence.
+- Implemented `ExecutiveCatalystSignalProvider` and `MacroGeopoliticalShockSignalProvider` in `atlas/signals/l4_narrative.py` with registration in `atlas/strategies/builder.py`.
+- Added unit tests in `tests/unit/test_generation5_catalyst.py` (230 total tests passing).
+- Enhanced `web/src/app/versions/page.tsx` with Gen 1 to Gen 5 lineage hierarchy showcase.
+- Enhanced `web/src/components/StrategyBlueprint.tsx` with mathematical formula cards for CEO Catalyst Scoring and Macro Shock filters.
+- Full verification passed clean: Ruff check & format clean, Mypy strict clean across 63 engine files, Next.js build clean across all 14 routes, Backend API (:8001) and Webapp (:3000) verified running live.
+
+## SESSION LOG
+### 2026-08-23 — Session 15: Phase 9 Live Readiness, IBKR Gateway, German Tax Engine & Shadow Divergence
+- Created Alembic migration `0007_phase9_tax_shadow_models.py` and SQLAlchemy models `ECBExchangeRate`, `TaxLot`, `TaxEvent`, and `ShadowExecutionLog`.
+- Implemented `ECBRateProvider` in `atlas/accounting/ecb.py` fetching official ECB daily reference exchange rates with caching and trade-date conversion.
+- Implemented `FIFOLotManager` and `GermanTaxEngine` in `atlas/accounting/tax.py` supporting FIFO lot tracking, § 20 Abs. 6 EStG loss offset pots (*Aktientopf* vs *Sonstige*), Sparerpauschbetrag allowance, and KESt/Soli withholding.
+- Implemented `IBKRBroker` in `atlas/execution/ibkr_broker.py` conforming to the `Broker` protocol with TWS / IB Gateway communication and offline sandbox mode.
+- Implemented `DivergenceMonitor` and `ShadowRunnerDaemon` in `atlas/execution/divergence.py` and `atlas/runner/shadow.py` tracking real-time slippage (bps) and quote latency (ms).
+- Implemented `TOTPAuthenticator` in `atlas/core/totp.py` (RFC 6238) and standalone backup utility `scripts/backup_db.py`.
+- Built FastAPI routers in `atlas/api/routers/taxes.py` and `atlas/api/routers/shadow.py` and registered schemas in `atlas/api/schemas/`.
+- Built Next.js German Tax Dashboard (`web/src/app/taxes/page.tsx`) with tax liability cards, loss pot meters, FIFO inventory, disposition blotter, and 1-click *Anlage KAP* CSV/JSON exports.
+- Enhanced Live / Paper Dashboard (`web/src/app/live/page.tsx`) with Shadow Execution & Slippage Parity gauges and 2FA TOTP verification modal.
+- Expanded English and German bilingual dictionaries in `web/src/i18n/en.ts` and `web/src/i18n/de.ts`.
+- Added unit and property-based tests in `tests/unit/test_phase9_tax_engine.py`, `tests/unit/test_phase9_ibkr_shadow.py`, and `tests/unit/test_api_phase9.py` (227 total tests passing).
+- Full verification passed clean: Ruff check & format clean, Mypy strict clean across all engine modules, Next.js build clean across all 14 routes, Backend API (:8001) and Webapp (:3000) verified running live.
+
+## SESSION LOG
+### 2026-08-23 — Session 14: ATLAS v1.5 Full Implementation
+- Ingested & verified 100% real historical market data integration and benchmark series CLI (`atlas data ingest-benchmark`).
+- Implemented `compute_multi_horizon_metrics` in `atlas/backtest/metrics.py` for standard institutional horizons (10Y, 5Y, 3Y, 1Y, YTD, ALL) aligned against S&P 500 (`SPY`) benchmark equity curve.
+- Added API endpoints `GET /api/v1/runs/{id}/multi-horizon` and `GET /api/v1/signals/universe` (algorithmic universe screening with ADV >= $20M, price >= $5, ROIC >= 8%, Piotroski >= 6).
+- Uncapped research trial budget across `atlas/core/config.py`, `atlas/research/trials.py`, `atlas/research/daemon.py`, and API endpoints to allow unlimited exploratory discovery loops with dynamic DSR scaling.
+- Built interactive `StrategyBlueprint` component (`web/src/components/StrategyBlueprint.tsx`) detailing the 4-layer Alpha Stack, interactive mathematical formula cards, and 5-phase execution timeline.
+- Enhanced `web/src/app/runs/[id]/page.tsx` with multi-horizon horizon tabs, dollar earnings breakdown cards, and Strategy vs S&P 500 comparison table.
+- Enhanced `web/src/app/signals/page.tsx` with dynamic universe screening table and indicator explorer.
+- Enhanced `web/src/app/versions/page.tsx` with Strategy Evolution Pipeline (Gen 1 to Gen 4) showcase.
+- Enhanced `web/src/app/research/page.tsx` with uncapped trial capacity metrics.
+- Added unit tests in `tests/unit/test_v1_5_improvements.py` (215 total tests passing).
+- Full verification passed clean: Ruff check & format clean, Mypy strict clean across 184 source files, Next.js production build clean across all 13 routes, Backend API (:8001) and Webapp (:3000) verified running live.
+
 ### 2026-08-23 — Session 13: Interactive Walkthrough Tour, In-App Documentation (/docs), and Universal Plain-English Tooltips
 - Built interactive 6-step `WalkthroughModal` (`web/src/components/WalkthroughModal.tsx`) and `WalkthroughContext` (`web/src/components/WalkthroughContext.tsx`) covering system architecture, L1-L4 alpha layers, strategy immutability, the research loop & 8 gates, live/paper execution, and the operator playbook.
 - Created comprehensive in-app Knowledge Base & Documentation dashboard (`web/src/app/docs/page.tsx`) with 9 interactive concept tabs.

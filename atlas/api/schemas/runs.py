@@ -68,3 +68,46 @@ class CompareResponse(BaseModel):
     runs: list[dict[str, Any]]
     metrics_diff: dict[str, dict[str, float]]
     equity_by_run: dict[str, list[dict[str, Any]]]
+
+
+class HorizonMetricsResponse(BaseModel):
+    horizon: str
+    start_date: str
+    end_date: str
+    trading_days: int
+    starting_capital: float
+    ending_equity: float
+    net_profit_usd: float
+    strategy_return_pct: float
+    strategy_cagr: float
+    strategy_sharpe: float
+    strategy_sortino: float
+    strategy_max_drawdown: float
+    strategy_calmar: float
+    win_rate: float
+    profit_factor: float
+    total_trades: int
+
+    # Benchmark stats
+    benchmark_starting_equity: float
+    benchmark_ending_equity: float
+    benchmark_profit_usd: float
+    benchmark_return_pct: float
+    benchmark_cagr: float
+    benchmark_max_drawdown: float
+    alpha: float
+    beta: float
+    information_ratio: float
+    tracking_error: float
+    correlation: float
+
+    # Holding Durations & Frictional Drag (Turnover/Costs)
+    avg_holding_days: float = 0.0
+    avg_win_holding_days: float = 0.0
+    avg_loss_holding_days: float = 0.0
+    total_slippage_usd: float = 0.0
+    total_commissions_usd: float = 0.0
+    total_fees_usd: float = 0.0
+    total_frictional_drag_usd: float = 0.0
+    gross_profit_usd: float = 0.0
+    frictional_drag_pct: float = 0.0

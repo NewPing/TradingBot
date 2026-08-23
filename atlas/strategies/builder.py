@@ -34,6 +34,8 @@ from atlas.signals.l3_fundamental import (
     ValuationQualitySignalProvider,
 )
 from atlas.signals.l4_narrative import (
+    ExecutiveCatalystSignalProvider,
+    MacroGeopoliticalShockSignalProvider,
     NarrativeMomentumSignalProvider,
     NewsSentimentSignalProvider,
 )
@@ -87,13 +89,23 @@ def build_signal_provider(provider_name: str, params: dict[str, Any]) -> SignalP
             id=provider_name,
             period=int(params.get("period", 20)),
         )
-    elif name in ("l2_cs_momentum", "cs_momentum", "cross_sectional_momentum"):
+    elif name in (
+        "l2_cs_momentum",
+        "cs_momentum",
+        "cross_sectional_momentum",
+        "l2_cross_sectional_momentum",
+    ):
         return CrossSectionalMomentumProvider(
             id=provider_name,
             skip_bars=int(params.get("skip_bars", 21)),
             lookback_bars=int(params.get("lookback_bars", 252)),
         )
-    elif name in ("l2_market_regime", "market_regime", "regime_detector"):
+    elif name in (
+        "l2_market_regime",
+        "market_regime",
+        "regime_detector",
+        "l2_regime_detector",
+    ):
         return MarketRegimeSignalProvider(
             id=provider_name,
             benchmark=str(params.get("benchmark", "SPY")),
@@ -104,7 +116,14 @@ def build_signal_provider(provider_name: str, params: dict[str, Any]) -> SignalP
             model_id=str(params.get("model_id", "lgbm_dir_5d_v1")),
             model_version=str(params.get("model_version", "1.0.0")),
         )
-    elif name in ("l3_val_quality", "val_quality", "fundamental_quality", "garp"):
+    elif name in (
+        "l3_val_quality",
+        "val_quality",
+        "fundamental_quality",
+        "garp",
+        "l3_composite_fundamental",
+        "composite_fundamental",
+    ):
         return ValuationQualitySignalProvider(
             id=provider_name,
             min_roic=float(params.get("min_roic", 0.08)),
@@ -131,6 +150,24 @@ def build_signal_provider(provider_name: str, params: dict[str, Any]) -> SignalP
             fast_lookback_hours=int(params.get("fast_lookback_hours", 24)),
             slow_lookback_hours=int(params.get("slow_lookback_hours", 72)),
             min_relevance=float(params.get("min_relevance", 0.3)),
+        )
+    elif name in (
+        "l4_executive_catalyst",
+        "executive_catalyst",
+        "ceo_catalyst",
+        "product_catalyst",
+    ):
+        return ExecutiveCatalystSignalProvider(
+            id=provider_name,
+            lookback_hours=int(params.get("lookback_hours", 72)),
+            catalyst_weight=float(params.get("catalyst_weight", 1.5)),
+            min_relevance=float(params.get("min_relevance", 0.5)),
+        )
+    elif name in ("l4_macro_shock", "macro_shock", "geopolitical_shock", "tariff_filter"):
+        return MacroGeopoliticalShockSignalProvider(
+            id=provider_name,
+            lookback_hours=int(params.get("lookback_hours", 48)),
+            tariff_sensitivity=float(params.get("tariff_sensitivity", 1.2)),
         )
     else:
         raise ValueError(f"Unknown signal provider: {provider_name}")

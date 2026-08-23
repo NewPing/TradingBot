@@ -89,15 +89,20 @@ class FeatureEngine:
             feat_df["timestamp"] = df["timestamp"]
             feat_df["close"] = df["close"]
 
-            # Compute forward return targets
+            # Compute forward return targets relative to executable t+1 open price
             close_arr = df["close"].to_numpy(dtype=float)
+            open_arr = df["open"].to_numpy(dtype=float) if "open" in df.columns else close_arr
             n = len(df)
             for k in forward_horizons:
                 fwd_ret = np.full(n, np.nan)
                 fwd_dir = np.full(n, np.nan)
                 for i in range(n - k):
-                    if close_arr[i] > 0:
-                        ret_k = (close_arr[i + k] - close_arr[i]) / close_arr[i]
+                    # Execution on day i occurs at open[i + 1]
+                    exec_price = (
+                        open_arr[i + 1] if (i + 1 < n and open_arr[i + 1] > 0) else close_arr[i]
+                    )
+                    if exec_price > 0 and (i + k) < n:
+                        ret_k = (close_arr[i + k] - exec_price) / exec_price
                         fwd_ret[i] = ret_k
                         fwd_dir[i] = 1.0 if ret_k > 0 else 0.0
 
@@ -110,6 +115,8 @@ class FeatureEngine:
             return pd.DataFrame()
 
         panel_df = pd.concat(all_rows, ignore_index=True)
+        if "timestamp" in panel_df.columns:
+            panel_df = panel_df.sort_values("timestamp").reset_index(drop=True)
         return panel_df
 
     def save_feature_snapshot(self, df: pd.DataFrame, file_path: Path) -> None:

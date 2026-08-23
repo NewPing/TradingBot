@@ -165,6 +165,8 @@ class Fill:
     fees: Money
     slippage_est: Money
     venue: str
+    symbol: Symbol | None = None
+    side: Side | None = None
 
     def __post_init__(self) -> None:
         if self.ts.tzinfo is None:
@@ -185,6 +187,7 @@ class Position:
     unrealized: Money
     realized: Money
     stop_px: Decimal | None = None
+    open_fees: Money = field(default_factory=Money.zero)
 
     def __post_init__(self) -> None:
         if self.opened_ts.tzinfo is None:

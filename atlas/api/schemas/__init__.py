@@ -29,7 +29,19 @@ from atlas.api.schemas.runs import (
     RunResponse,
     RunTradeResponse,
 )
+from atlas.api.schemas.shadow import (
+    ShadowLogRecord,
+    ShadowTelemetryResponse,
+    TOTPVerifyRequest,
+    TOTPVerifyResponse,
+)
 from atlas.api.schemas.signals import SignalExploreResponse, SignalSeriesPoint
+from atlas.api.schemas.taxes import (
+    AnnualTaxReportResponse,
+    ECBRateResponse,
+    TaxEventResponse,
+    TaxLotResponse,
+)
 from atlas.api.schemas.trials import TrialBudgetResponse, TrialResponse
 from atlas.api.schemas.versions import (
     LineageNode,
@@ -55,8 +67,10 @@ class VersionResponse(BaseModel):
 
 
 __all__ = [
+    "AnnualTaxReportResponse",
     "CompareRequest",
     "CompareResponse",
+    "ECBRateResponse",
     "EarningsEventResponse",
     "EquityPointResponse",
     "FundamentalScreenerItem",
@@ -74,12 +88,18 @@ __all__ = [
     "RunResponse",
     "RunTradeResponse",
     "ScoreNewsRequest",
+    "ShadowLogRecord",
+    "ShadowTelemetryResponse",
     "SignalExploreResponse",
     "SignalSeriesPoint",
     "StrategyStatusUpdate",
     "StrategyVersionCreate",
     "StrategyVersionResponse",
     "SymbolSentimentResponse",
+    "TOTPVerifyRequest",
+    "TOTPVerifyResponse",
+    "TaxEventResponse",
+    "TaxLotResponse",
     "TrialBudgetResponse",
     "TrialResponse",
     "VersionResponse",

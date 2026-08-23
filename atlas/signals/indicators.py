@@ -14,12 +14,12 @@ def compute_sma(values: npt.NDArray[np.float64], period: int) -> float | None:
 
 
 def compute_ema(values: npt.NDArray[np.float64], period: int) -> float | None:
-    """Compute Exponential Moving Average of the series up to the last element."""
+    """Compute Exponential Moving Average of the series up to the last element, seeded with SMA."""
     if len(values) < period or period <= 0:
         return None
     alpha = 2.0 / (period + 1.0)
-    ema = float(values[0])
-    for v in values[1:]:
+    ema = float(np.mean(values[:period]))
+    for v in values[period:]:
         ema = alpha * float(v) + (1.0 - alpha) * ema
     return ema
 
@@ -56,28 +56,34 @@ def compute_macd(
     slow_period: int = 26,
     signal_period: int = 9,
 ) -> tuple[float, float, float] | None:
-    """Compute MACD (macd_line, signal_line, histogram)."""
+    """Compute MACD (macd_line, signal_line, histogram) properly seeded."""
     if len(closes) < slow_period + signal_period:
         return None
 
-    # Calculate fast & slow EMA series
     alpha_fast = 2.0 / (fast_period + 1.0)
     alpha_slow = 2.0 / (slow_period + 1.0)
 
-    ema_fast = float(closes[0])
-    ema_slow = float(closes[0])
+    ema_fast = float(np.mean(closes[:fast_period]))
+    ema_slow = float(np.mean(closes[:slow_period]))
     macd_series: list[float] = []
 
-    for c in closes:
+    # Advance fast EMA up to slow_period
+    for c in closes[fast_period:slow_period]:
+        ema_fast = alpha_fast * float(c) + (1.0 - alpha_fast) * ema_fast
+
+    # Calculate both EMAs and MACD series
+    for c in closes[slow_period:]:
         ema_fast = alpha_fast * float(c) + (1.0 - alpha_fast) * ema_fast
         ema_slow = alpha_slow * float(c) + (1.0 - alpha_slow) * ema_slow
         macd_series.append(ema_fast - ema_slow)
 
+    if len(macd_series) < signal_period:
+        return None
+
     macd_arr = np.array(macd_series, dtype=np.float64)
-    # Signal line is EMA of macd_series
     alpha_sig = 2.0 / (signal_period + 1.0)
-    ema_sig = float(macd_arr[0])
-    for m in macd_arr[1:]:
+    ema_sig = float(np.mean(macd_arr[:signal_period]))
+    for m in macd_arr[signal_period:]:
         ema_sig = alpha_sig * float(m) + (1.0 - alpha_sig) * ema_sig
 
     macd_line = float(macd_arr[-1])
@@ -180,15 +186,21 @@ def compute_realized_volatility(
 def compute_52w_position(
     closes: npt.NDArray[np.float64],
     period: int = 252,
+    highs: npt.NDArray[np.float64] | None = None,
+    lows: npt.NDArray[np.float64] | None = None,
 ) -> float | None:
     """Compute price position relative to 52-week high/low range: (Close - Low) / (High - Low)."""
     if len(closes) < period or period <= 0:
         return None
 
-    window = closes[-period:]
-    low_52 = float(np.min(window))
-    high_52 = float(np.max(window))
     current_price = float(closes[-1])
+    if highs is not None and lows is not None and len(highs) >= period and len(lows) >= period:
+        low_52 = float(np.min(lows[-period:]))
+        high_52 = float(np.max(highs[-period:]))
+    else:
+        window = closes[-period:]
+        low_52 = float(np.min(window))
+        high_52 = float(np.max(window))
 
     rng = high_52 - low_52
     if rng <= 0.0:
@@ -202,16 +214,23 @@ def compute_volume_zscore(
     volumes: npt.NDArray[np.float64],
     period: int = 20,
 ) -> float | None:
-    """Compute z-score of the most recent volume relative to trailing rolling mean & std."""
-    if len(volumes) < period or period < 2:
+    """Compute z-score of current volume relative to strictly prior trailing window (excluding current bar)."""
+    if len(volumes) < 2 or period < 1:
         return None
 
-    window = volumes[-period:]
+    available_period = min(period, len(volumes) - 1)
+    if available_period < 2:
+        return None
+
+    # Baseline computed on prior bars strictly excluding the current volume observation
+    window = volumes[-(available_period + 1) : -1]
     mean_vol = float(np.mean(window))
     std_vol = float(np.std(window, ddof=1))
 
-    if std_vol <= 0.0:
+    current_vol = float(volumes[-1])
+    if std_vol <= 1e-8:
+        if current_vol > mean_vol or current_vol < mean_vol:
+            return float((current_vol - mean_vol) / max(1.0, mean_vol * 0.1))
         return 0.0
 
-    current_vol = float(volumes[-1])
     return float((current_vol - mean_vol) / std_vol)

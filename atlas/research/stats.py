@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
+from scipy.stats import norm  # type: ignore[import-untyped]
 
 
 def calculate_deflated_sharpe(
@@ -21,6 +23,7 @@ def calculate_deflated_sharpe(
     skewness: float = 0.0,
     kurtosis: float = 3.0,
     n_periods: int = 252,
+    annual_factor: float = 252.0,
 ) -> float:
     """Calculate the Deflated Sharpe Ratio (DSR) accounting for multiple testing.
 
@@ -36,37 +39,40 @@ def calculate_deflated_sharpe(
     if trials <= 1:
         trials = 1
 
-    # Standard error of Sharpe ratio under non-normality (Mertens 2002 / Lo 2002)
-    # se = sqrt( (1 - skew * sr + (kurt - 1)/4 * sr^2) / (n - 1) )
-    sr = sharpe
+    # Standard error of Sharpe ratio under non-normality (Mertens 2002 / Lo 2002 / Bailey & de Prado 2014)
+    # Convert annualized Sharpe to daily frequency for Mertens standard error, then scale back by sqrt(annual_factor)
+    sr_ann = sharpe
+    sr_daily = sr_ann / math.sqrt(annual_factor) if annual_factor > 0 else sr_ann
     n = max(n_periods, 10)
-    se_sq = (1.0 - skewness * sr + ((kurtosis - 1.0) / 4.0) * (sr**2)) / (n - 1.0)
-    se = math.sqrt(max(se_sq, 1e-6))
+    se_daily_sq = (1.0 - skewness * sr_daily + ((kurtosis - 1.0) / 4.0) * (sr_daily**2)) / (n - 1.0)
+    se_ann = math.sqrt(max(se_daily_sq, 1e-8)) * math.sqrt(annual_factor)
 
     # Expected maximum Sharpe among N independent trials under null hypothesis
     # E[max_N] ~= sqrt(var_trials) * ((1 - gamma) * Z^{-1}(1 - 1/N) + gamma * Z^{-1}(1 - 1/(N*e)))
-    # Standard approximation via Euler-Mascheroni constant (gamma ~= 0.5772156649)
     gamma_const = 0.57721566490153286
     if trials > 1:
-        z1 = math.sqrt(2.0 * math.log(trials))
-        # Refined extreme value distribution expected maximum
+        p1 = min(0.99999, max(0.00001, 1.0 - 1.0 / trials))
+        p2 = min(0.99999, max(0.00001, 1.0 - 1.0 / (trials * math.e)))
+        q1 = float(norm.ppf(p1))
+        q2 = float(norm.ppf(p2))
         sr_benchmark = math.sqrt(max(var_trials, 1e-6)) * (
-            (1.0 - gamma_const) * z1 + gamma_const * math.sqrt(2.0 * math.log(trials * math.e))
+            (1.0 - gamma_const) * q1 + gamma_const * q2
         )
     else:
         sr_benchmark = 0.0
 
-    # Deflated test statistic
-    test_stat = (sr - sr_benchmark) / se
+    # Deflated test statistic in annualized units
+    test_stat = (sr_ann - sr_benchmark) / se_ann
 
     # Standard normal CDF
-    dsr = 0.5 * (1.0 + math.erf(test_stat / math.sqrt(2.0)))
+    dsr = float(norm.cdf(test_stat))
     return float(max(0.0, min(1.0, dsr)))
 
 
 def calculate_pbo(
     returns_matrix: np.ndarray,
     n_splits: int = 8,
+    purge_window: int = 0,
 ) -> dict[str, Any]:
     """Calculate the Probability of Backtest Overfitting (PBO) via CSCV.
 
@@ -78,6 +84,7 @@ def calculate_pbo(
     Parameters:
         returns_matrix: 2D array of shape (T_periods, N_strategies)
         n_splits: Number of time slices (must be even, e.g. 6, 8, 10)
+        purge_window: Number of boundary periods to purge from OOS slices
     """
     t_periods, n_strategies = returns_matrix.shape
     if n_strategies < 2:
@@ -115,7 +122,14 @@ def calculate_pbo(
         oos_indices = [i for i in range(n_splits) if i not in is_indices]
 
         is_data = np.vstack([chunks[i] for i in is_indices])
-        oos_data = np.vstack([chunks[i] for i in oos_indices])
+        oos_chunks_clean = []
+        for i in oos_indices:
+            c = chunks[i]
+            if purge_window > 0 and len(c) > purge_window:
+                oos_chunks_clean.append(c[purge_window:])
+            else:
+                oos_chunks_clean.append(c)
+        oos_data = np.vstack(oos_chunks_clean)
 
         # Compute In-Sample Sharpe
         is_mean = np.mean(is_data, axis=0)
@@ -154,17 +168,18 @@ def monte_carlo_trade_shuffle(
     trade_pct_returns: list[float],
     n_sims: int = 1000,
     initial_capital: float = 100_000.0,
+    position_fraction: float = 0.10,
+    total_years: float | None = None,
     seed: int = 42,
+    daily_returns: Sequence[float] | None = None,
 ) -> dict[str, float]:
-    """Perform bootstrap Monte Carlo trade shuffling to evaluate luck vs robust edge.
+    """Perform bootstrap Monte Carlo simulation to evaluate luck vs robust edge.
 
-    Parameters:
-        trade_pct_returns: List of fractional trade returns (e.g. [0.05, -0.02, 0.012])
-        n_sims: Number of simulation permutations (default 1000)
-        initial_capital: Base starting portfolio value
-        seed: Random seed for reproducibility
+    If daily_returns is provided, resamples daily portfolio returns to preserve
+    concurrent multi-asset netting and exposure structure. Otherwise, resamples
+    individual trade returns.
     """
-    if not trade_pct_returns:
+    if not trade_pct_returns and (daily_returns is None or len(daily_returns) == 0):
         return {
             "p5_cagr": 0.0,
             "p50_cagr": 0.0,
@@ -176,27 +191,49 @@ def monte_carlo_trade_shuffle(
         }
 
     rng = np.random.default_rng(seed)
-    returns_arr = np.array(trade_pct_returns, dtype=float)
-    n_trades = len(returns_arr)
-
     terminal_values: list[float] = []
     max_drawdowns: list[float] = []
 
-    for _ in range(n_sims):
-        # Sample with replacement
-        sample_returns = rng.choice(returns_arr, size=n_trades, replace=True)
-        equity_curve = initial_capital * np.cumprod(1.0 + sample_returns)
-        terminal_values.append(float(equity_curve[-1]))
+    if daily_returns is not None and len(daily_returns) > 5:
+        daily_arr = np.array(daily_returns, dtype=float)
+        n_days = len(daily_arr)
+        years = (
+            total_years
+            if (total_years is not None and total_years > 0.0)
+            else max(0.5, n_days / 252.0)
+        )
 
-        # Max drawdown
-        running_max = np.maximum.accumulate(equity_curve)
-        drawdowns = (equity_curve - running_max) / running_max
-        max_dd = abs(float(np.min(drawdowns)))
-        max_drawdowns.append(max_dd)
+        for _ in range(n_sims):
+            sample_daily = rng.choice(daily_arr, size=n_days, replace=True)
+            equity_curve = initial_capital * np.cumprod(1.0 + sample_daily)
+            terminal_values.append(float(equity_curve[-1]))
 
-    # Approximate CAGR assuming average trade duration of ~10 trading days or standard yearly fraction
-    years = max(1.0, n_trades * 10 / 252.0)
-    cagrs = [(v / initial_capital) ** (1.0 / years) - 1.0 for v in terminal_values]
+            running_max = np.maximum.accumulate(equity_curve)
+            drawdowns = (equity_curve - running_max) / running_max
+            max_dd = abs(float(np.min(drawdowns)))
+            max_drawdowns.append(max_dd)
+    else:
+        returns_arr = np.array(trade_pct_returns, dtype=float)
+        n_trades = len(returns_arr)
+        pos_frac = max(0.01, min(1.0, position_fraction))
+        years = (
+            total_years
+            if (total_years is not None and total_years > 0.0)
+            else max(0.5, n_trades * 10.0 / 252.0)
+        )
+
+        for _ in range(n_sims):
+            sample_returns = rng.choice(returns_arr, size=n_trades, replace=True)
+            portfolio_returns = sample_returns * pos_frac
+            equity_curve = initial_capital * np.cumprod(1.0 + portfolio_returns)
+            terminal_values.append(float(equity_curve[-1]))
+
+            running_max = np.maximum.accumulate(equity_curve)
+            drawdowns = (equity_curve - running_max) / running_max
+            max_dd = abs(float(np.min(drawdowns)))
+            max_drawdowns.append(max_dd)
+
+    cagrs = [(max(1e-4, v) / initial_capital) ** (1.0 / years) - 1.0 for v in terminal_values]
 
     p5_cagr = float(np.percentile(cagrs, 5))
     p50_cagr = float(np.percentile(cagrs, 50))

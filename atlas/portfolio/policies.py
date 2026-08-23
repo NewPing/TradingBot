@@ -9,6 +9,7 @@ from typing import Protocol
 
 from atlas.core.money import Money
 from atlas.core.types import BucketId, Position, Quantity, Signal, Symbol
+from atlas.portfolio.buckets import DEFAULT_BUCKET_CONFIGS
 from atlas.portfolio.sizing import SizingCalculator
 
 
@@ -40,6 +41,7 @@ class TopNLongOnlyPolicy:
     weight_by: str = "inverse_vol"  # "inverse_vol", "equal_weight", "conviction"
     max_position_pct: Decimal = Decimal("0.20")
     bucket: BucketId = BucketId.CORE
+    scale_by_bucket_allocation: bool = False
     sizing: SizingCalculator = field(default_factory=SizingCalculator)
 
     def generate_targets(
@@ -67,29 +69,51 @@ class TopNLongOnlyPolicy:
         top_selected = qualifying[: self.n]
         selected_symbols = {sym for sym, _ in top_selected}
 
-        # Any currently held position not in selected set -> target 0 (liquidate)
+        # Any currently held position in this bucket not in selected set -> target 0 (liquidate)
         for pos in current_positions:
-            if pos.symbol not in selected_symbols:
+            if pos.bucket == self.bucket and pos.symbol not in selected_symbols:
                 targets[pos.symbol] = Quantity(0)
 
         if not top_selected:
             return targets
 
+        bucket_cfg = DEFAULT_BUCKET_CONFIGS.get(self.bucket)
+        bucket_alloc = (
+            bucket_cfg.target_allocation
+            if (self.scale_by_bucket_allocation and bucket_cfg)
+            else Decimal("1.0")
+        )
+        effective_bucket_equity = Money(total_equity.amount * bucket_alloc, total_equity.currency)
+
         if self.weight_by == "equal_weight":
             equal_weight = min(Decimal("1.0") / Decimal(len(top_selected)), self.max_position_pct)
             for sym, _ in top_selected:
                 px = current_prices[sym]
-                notional = total_equity.amount * equal_weight
+                notional = effective_bucket_equity.amount * equal_weight
+                qty = int(math.floor(float(notional / px)))
+                targets[sym] = Quantity(max(0, qty))
+        elif self.weight_by == "conviction":
+            total_conviction = (
+                sum(max(0.1, sig.score * sig.confidence) for _, sig in top_selected) or 1.0
+            )
+            for sym, sig in top_selected:
+                px = current_prices[sym]
+                conv_score = max(0.1, sig.score * sig.confidence)
+                conv_weight = min(
+                    Decimal(str(conv_score / total_conviction)),
+                    self.max_position_pct,
+                )
+                notional = effective_bucket_equity.amount * conv_weight
                 qty = int(math.floor(float(notional / px)))
                 targets[sym] = Quantity(max(0, qty))
         else:
-            # Volatility or conviction targeting via SizingCalculator
+            # Volatility targeting via SizingCalculator (inverse_vol)
             for sym, sig in top_selected:
                 px = current_prices[sym]
                 vol = realized_vols.get(sym, Decimal("0.20"))
                 qty = self.sizing.calculate_quantity(
                     bucket=self.bucket,
-                    bucket_equity=total_equity,
+                    bucket_equity=effective_bucket_equity,
                     price=px,
                     composite_score=sig.score,
                     realized_vol_20d=vol,
@@ -115,6 +139,7 @@ class ThresholdLongOnlyPolicy:
     bucket: BucketId = BucketId.SWING
     max_position_pct: Decimal = Decimal("0.10")
     allow_short: bool = False
+    scale_by_bucket_allocation: bool = False
     sizing: SizingCalculator = field(default_factory=SizingCalculator)
 
     def generate_targets(
@@ -135,14 +160,14 @@ class ThresholdLongOnlyPolicy:
         for sym, pos in currently_held.items():
             sig = signals.get(sym)
             if pos.qty > 0:
-                # Long position exit
-                if sig is None or sig.score <= self.exit_threshold:
+                # Long position exit (hold if signal missing)
+                if sig is not None and sig.score <= self.exit_threshold:
                     targets[sym] = Quantity(0)
                 else:
                     targets[sym] = Quantity(pos.qty)
             else:
-                # Short position exit
-                if sig is None or sig.score >= -self.exit_threshold:
+                # Short position exit (hold if signal missing)
+                if sig is not None and sig.score >= -self.exit_threshold:
                     targets[sym] = Quantity(0)
                 else:
                     targets[sym] = Quantity(pos.qty)
@@ -159,6 +184,14 @@ class ThresholdLongOnlyPolicy:
         ]
         long_candidates.sort(key=lambda x: x[1].score, reverse=True)
 
+        bucket_cfg = DEFAULT_BUCKET_CONFIGS.get(self.bucket)
+        bucket_alloc = (
+            bucket_cfg.target_allocation
+            if (self.scale_by_bucket_allocation and bucket_cfg)
+            else Decimal("1.0")
+        )
+        effective_bucket_equity = Money(total_equity.amount * bucket_alloc, total_equity.currency)
+
         for sym, sig in long_candidates:
             if active_count >= self.max_positions:
                 break
@@ -166,7 +199,7 @@ class ThresholdLongOnlyPolicy:
             vol = realized_vols.get(sym, Decimal("0.20"))
             qty = self.sizing.calculate_quantity(
                 bucket=self.bucket,
-                bucket_equity=total_equity,
+                bucket_equity=effective_bucket_equity,
                 price=px,
                 composite_score=sig.score,
                 realized_vol_20d=vol,
@@ -195,7 +228,7 @@ class ThresholdLongOnlyPolicy:
                 vol = realized_vols.get(sym, Decimal("0.20"))
                 qty = self.sizing.calculate_quantity(
                     bucket=self.bucket,
-                    bucket_equity=total_equity,
+                    bucket_equity=effective_bucket_equity,
                     price=px,
                     composite_score=abs(sig.score),
                     realized_vol_20d=vol,
@@ -234,7 +267,9 @@ class TargetWeightPolicy:
         targets: dict[Symbol, Quantity] = {}
 
         for pos in current_positions:
-            if pos.symbol not in signals or signals[pos.symbol].score < self.min_score:
+            if pos.bucket == self.bucket and (
+                pos.symbol not in signals or signals[pos.symbol].score < self.min_score
+            ):
                 targets[pos.symbol] = Quantity(0)
 
         for sym, sig in signals.items():

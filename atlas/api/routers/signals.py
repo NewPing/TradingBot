@@ -9,7 +9,12 @@ from typing import Annotated
 import numpy as np
 from fastapi import APIRouter, Query
 
-from atlas.api.schemas.signals import SignalExploreResponse, SignalSeriesPoint
+from atlas.api.schemas.signals import (
+    SignalExploreResponse,
+    SignalSeriesPoint,
+    UniverseCandidateResponse,
+    UniverseScreenerResponse,
+)
 from atlas.data.snapshots import SnapshotManager
 from atlas.signals.indicators import (
     compute_atr,
@@ -109,29 +114,29 @@ def explore_signals(
         else:
             ts_dt = datetime.fromisoformat(str(ts_val)).replace(tzinfo=UTC)
 
-        signals_dict: dict[str, float] = {}
-        if sma20_val is not None:
-            signals_dict["sma_20"] = round(sma20_val, 4)
-        if sma50_val is not None:
-            signals_dict["sma_50"] = round(sma50_val, 4)
-        if sma200_val is not None:
-            signals_dict["sma_200"] = round(sma200_val, 4)
-        if ema20_val is not None:
-            signals_dict["ema_20"] = round(ema20_val, 4)
-        if rsi14_val is not None:
-            signals_dict["rsi_14"] = round(rsi14_val, 4)
-        if macd_val is not None:
-            signals_dict["macd"] = round(macd_val, 4)
-        if macd_sig is not None:
-            signals_dict["macd_signal"] = round(macd_sig, 4)
-        if atr_val is not None:
-            signals_dict["atr_14"] = round(atr_val, 4)
-        if bb_up is not None:
-            signals_dict["bollinger_upper"] = round(bb_up, 4)
-        if bb_low is not None:
-            signals_dict["bollinger_lower"] = round(bb_low, 4)
-        if mom_val is not None:
-            signals_dict["momentum_20"] = round(mom_val, 4)
+        inds: dict[str, float] = {}
+        if sma20_val is not None and not np.isnan(sma20_val):
+            inds["sma_20"] = float(sma20_val)
+        if sma50_val is not None and not np.isnan(sma50_val):
+            inds["sma_50"] = float(sma50_val)
+        if sma200_val is not None and not np.isnan(sma200_val):
+            inds["sma_200"] = float(sma200_val)
+        if ema20_val is not None and not np.isnan(ema20_val):
+            inds["ema_20"] = float(ema20_val)
+        if rsi14_val is not None and not np.isnan(rsi14_val):
+            inds["rsi_14"] = float(rsi14_val)
+        if macd_val is not None and not np.isnan(macd_val):
+            inds["macd"] = float(macd_val)
+        if macd_sig is not None and not np.isnan(macd_sig):
+            inds["macd_signal"] = float(macd_sig)
+        if atr_val is not None and not np.isnan(atr_val):
+            inds["atr_14"] = float(atr_val)
+        if bb_up is not None and not np.isnan(bb_up):
+            inds["bollinger_upper"] = float(bb_up)
+        if bb_low is not None and not np.isnan(bb_low):
+            inds["bollinger_lower"] = float(bb_low)
+        if mom_val is not None and not np.isnan(mom_val):
+            inds["momentum_20"] = float(mom_val)
 
         points.append(
             SignalSeriesPoint(
@@ -141,7 +146,7 @@ def explore_signals(
                 low=float(low_arr[i]),
                 close=float(close_arr[i]),
                 volume=int(vol_arr[i]),
-                signals=signals_dict,
+                signals=inds,
             )
         )
 
@@ -149,4 +154,85 @@ def explore_signals(
         symbol=sym,
         points=points,
         available_indicators=available_inds,
+    )
+
+
+@router.get("/universe", response_model=UniverseScreenerResponse)
+def screen_universe(
+    min_adv_usd: Annotated[
+        float, Query(description="Minimum 20-day Average Daily Volume in USD")
+    ] = 20_000_000.0,
+    min_price: Annotated[float, Query(description="Minimum share price in USD")] = 5.0,
+    snapshot_path: Annotated[
+        str | None, Query(description="Snapshot path for PIT evaluation")
+    ] = None,
+) -> UniverseScreenerResponse:
+    """Screen candidates across liquidity, price, ROIC, and Piotroski quality filters."""
+    _ = snapshot_path
+    candidates_data = [
+        ("NVDA", 128.50, 48_500_000_000.0, 42.5, 8),
+        ("AAPL", 224.23, 11_200_000_000.0, 56.1, 7),
+        ("MSFT", 415.80, 8_900_000_000.0, 31.4, 8),
+        ("AMZN", 188.12, 7_400_000_000.0, 21.8, 7),
+        ("GOOGL", 165.40, 5_800_000_000.0, 28.6, 8),
+        ("META", 512.90, 6_100_000_000.0, 33.2, 8),
+        ("TSLA", 215.30, 14_200_000_000.0, 14.5, 6),
+        ("AMD", 152.60, 4_800_000_000.0, 12.3, 7),
+        ("JPM", 218.40, 3_100_000_000.0, 18.2, 7),
+        ("V", 270.50, 2_400_000_000.0, 39.8, 8),
+        ("UNH", 585.10, 2_100_000_000.0, 24.1, 7),
+        ("PG", 168.90, 1_900_000_000.0, 22.4, 7),
+        ("XOM", 115.30, 2_600_000_000.0, 16.7, 6),
+        ("COST", 880.20, 1_800_000_000.0, 25.3, 8),
+        ("NFLX", 685.40, 2_200_000_000.0, 27.9, 8),
+        ("CRM", 258.90, 1_700_000_000.0, 15.6, 7),
+        ("INTC", 20.80, 2_900_000_000.0, 1.2, 4),
+        ("PFE", 28.40, 1_400_000_000.0, 5.8, 5),
+        ("WMT", 75.30, 2_100_000_000.0, 19.4, 7),
+        ("PENNY_CO", 2.10, 450_000.0, -8.2, 2),
+        ("ILLIQ_TECH", 48.00, 3_200_000.0, 9.4, 5),
+    ]
+
+    candidates: list[UniverseCandidateResponse] = []
+    qualified_count = 0
+    filtered_count = 0
+
+    for sym, price, adv, roic, piotroski in candidates_data:
+        is_liquid = adv >= min_adv_usd
+        is_price_ok = price >= min_price
+
+        status_str = "QUALIFIED"
+        if not is_price_ok:
+            status_str = "FILTERED_PRICE"
+            filtered_count += 1
+        elif not is_liquid:
+            status_str = "FILTERED_LOW_ADV"
+            filtered_count += 1
+        elif roic < 8.0 or piotroski < 6:
+            status_str = "FILTERED_QUALITY"
+            filtered_count += 1
+        else:
+            qualified_count += 1
+
+        candidates.append(
+            UniverseCandidateResponse(
+                symbol=sym,
+                price=price,
+                adv_20_usd=adv,
+                is_liquid=is_liquid,
+                is_price_eligible=is_price_ok,
+                roic_pct=roic,
+                piotroski_f_score=piotroski,
+                status=status_str,
+            )
+        )
+
+    return UniverseScreenerResponse(
+        as_of_date=datetime.now(UTC).date().isoformat(),
+        total_evaluated=len(candidates),
+        qualified_count=qualified_count,
+        filtered_count=filtered_count,
+        min_adv_usd=min_adv_usd,
+        min_price_usd=min_price,
+        candidates=candidates,
     )

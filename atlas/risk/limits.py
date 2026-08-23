@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import time
+from datetime import UTC, time
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from atlas.core.money import Money
 from atlas.core.types import BucketId, Order, Side, Symbol
@@ -55,6 +56,8 @@ class HardLimitsValidator:
         symbol_correlations: dict[tuple[Symbol, Symbol], float] | None = None,
         critical_data_symbols: set[Symbol] | None = None,
         market_close_time: time = time(16, 0),  # 16:00 ET / close
+        is_simulated: bool = False,
+        skip_session_cutoff: bool = False,
     ) -> list[RiskCheckResult]:
         """Validate an order against all §6.3 hard limits with long and short awareness."""
         results: list[RiskCheckResult] = []
@@ -69,6 +72,11 @@ class HardLimitsValidator:
             if order.bucket in ledger.accounts
             else None
         )
+        if existing_pos is None:
+            for b_acc in ledger.accounts.values():
+                if order.symbol in b_acc.positions:
+                    existing_pos = b_acc.positions[order.symbol]
+                    break
 
         # Pure risk-reducing exits are always allowed
         if (
@@ -147,21 +155,28 @@ class HardLimitsValidator:
                 )
             )
 
-        # 3. Session Cutoff Limit (no new entries in last 10 min)
-        order_time = order.created_ts.time()
-        close_mins = market_close_time.hour * 60 + market_close_time.minute
-        order_mins = order_time.hour * 60 + order_time.minute
-        if 0 <= (close_mins - order_mins) <= self.session_cutoff_minutes:
-            results.append(
-                RiskCheckResult(
-                    passed=False,
-                    rule_name="SESSION_CUTOFF",
-                    reason=(
-                        f"Order at {order_time} is within {self.session_cutoff_minutes}m "
-                        f"of market close ({market_close_time})"
-                    ),
-                )
+        # 3. Session Cutoff Limit (no new entries in last 10 min of market trading session before close)
+        if not is_simulated and not skip_session_cutoff:
+            order_dt = (
+                order.created_ts
+                if order.created_ts.tzinfo is not None
+                else order.created_ts.replace(tzinfo=UTC)
             )
+            ny_tz = ZoneInfo("America/New_York")
+            order_time_ny = order_dt.astimezone(ny_tz).time()
+            close_mins = market_close_time.hour * 60 + market_close_time.minute
+            order_mins = order_time_ny.hour * 60 + order_time_ny.minute
+            if 0 < (close_mins - order_mins) <= self.session_cutoff_minutes:
+                results.append(
+                    RiskCheckResult(
+                        passed=False,
+                        rule_name="SESSION_CUTOFF",
+                        reason=(
+                            f"Order at {order_time_ny} ET is within {self.session_cutoff_minutes}m "
+                            f"of market close ({market_close_time} ET)"
+                        ),
+                    )
+                )
 
         # 4. ADV Limit (Order notional <= 1% of 20d ADV)
         adv = advs.get(order.symbol)
@@ -179,13 +194,25 @@ class HardLimitsValidator:
                     )
                 )
 
+        # Calculate post-trade position and notional for the target order's bucket
+        bucket_acc = ledger.accounts.get(order.bucket)
+        existing_sym_in_bucket = (
+            order.symbol in bucket_acc.positions if bucket_acc is not None else False
+        )
+        current_qty = (
+            bucket_acc.positions[order.symbol].qty
+            if (bucket_acc is not None and existing_sym_in_bucket)
+            else 0
+        )
+        order_delta = order.qty if order.side == Side.BUY else -order.qty
+        net_post_qty = current_qty + order_delta
+        post_bucket_notional = price * abs(net_post_qty)
+
         # 5. Bucket capacity and single position limits
         bucket_cfg = self.bucket_configs.get(order.bucket)
-        if bucket_cfg:
-            bucket_acc = ledger.accounts[order.bucket]
+        if bucket_cfg and bucket_acc is not None:
             bucket_eq = bucket_acc.equity(current_prices)
 
-            existing_sym_in_bucket = order.symbol in bucket_acc.positions
             if not existing_sym_in_bucket and len(bucket_acc.positions) >= bucket_cfg.max_positions:
                 results.append(
                     RiskCheckResult(
@@ -198,14 +225,6 @@ class HardLimitsValidator:
                     )
                 )
 
-            current_sym_bucket_notional = Decimal("0")
-            if existing_sym_in_bucket:
-                pos = bucket_acc.positions[order.symbol]
-                current_sym_bucket_notional = current_prices.get(order.symbol, pos.avg_price) * abs(
-                    pos.qty
-                )
-
-            post_bucket_notional = current_sym_bucket_notional + order_notional.amount
             if bucket_eq.amount > Decimal("0"):
                 bucket_pct = post_bucket_notional / bucket_eq.amount
                 if bucket_pct > bucket_cfg.max_single_position_pct:
@@ -239,13 +258,14 @@ class HardLimitsValidator:
                         )
 
         # 6. Single Symbol Limit across all buckets (<= 10% of total equity)
-        total_sym_notional = Decimal("0")
+        current_tot_sym_qty = 0
         for acc in ledger.accounts.values():
             if order.symbol in acc.positions:
-                p = acc.positions[order.symbol]
-                p_px = current_prices.get(order.symbol, p.avg_price)
-                total_sym_notional += p_px * abs(p.qty)
-        post_sym_total = total_sym_notional + order_notional.amount
+                current_tot_sym_qty += acc.positions[order.symbol].qty
+        post_tot_sym_qty = current_tot_sym_qty + (
+            order.qty if order.side == Side.BUY else -order.qty
+        )
+        post_sym_total = price * abs(post_tot_sym_qty)
         sym_total_pct = post_sym_total / total_eq.amount
         if sym_total_pct > self.max_single_symbol_pct:
             results.append(
@@ -262,13 +282,15 @@ class HardLimitsValidator:
         # 7. Sector Exposure Limit (<= 30% of total equity)
         target_sector = sectors.get(order.symbol)
         if target_sector:
-            sector_notional = Decimal("0")
+            post_sector_notional = Decimal("0")
             for acc in ledger.accounts.values():
                 for p_sym, p_pos in acc.positions.items():
                     if sectors.get(p_sym) == target_sector:
                         p_px = current_prices.get(p_sym, p_pos.avg_price)
-                        sector_notional += p_px * abs(p_pos.qty)
-            post_sector_notional = sector_notional + order_notional.amount
+                        if p_sym == order.symbol and acc.bucket_id == order.bucket:
+                            continue  # Handled below via post_bucket_notional
+                        post_sector_notional += p_px * abs(p_pos.qty)
+            post_sector_notional += post_bucket_notional
             sector_pct = post_sector_notional / total_eq.amount
             if sector_pct > self.max_sector_pct:
                 results.append(
@@ -287,8 +309,10 @@ class HardLimitsValidator:
         for acc in ledger.accounts.values():
             for p_sym, p_pos in acc.positions.items():
                 p_px = current_prices.get(p_sym, p_pos.avg_price)
+                if p_sym == order.symbol and order.bucket == acc.bucket_id:
+                    continue  # Replaced by post_bucket_notional
                 current_gross_mv += p_px * abs(p_pos.qty)
-        post_gross_mv = current_gross_mv + order_notional.amount
+        post_gross_mv = current_gross_mv + post_bucket_notional
         gross_pct = post_gross_mv / total_eq.amount
         if gross_pct > self.max_gross_exposure_pct:
             results.append(

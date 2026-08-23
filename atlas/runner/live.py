@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -33,6 +34,12 @@ from atlas.risk.killswitch import KillSwitchTrigger
 from atlas.risk.manager import RiskManager
 from atlas.runner.health import RunnerHealthMonitor
 from atlas.runner.recovery import CrashRecoveryManager
+from atlas.signals.indicators import compute_atr
+from atlas.strategies.builder import (
+    build_aggregator,
+    build_position_policy,
+    build_signal_provider,
+)
 from atlas.strategies.spec import StrategySpec
 
 logger = logging.getLogger("atlas.runner.live")
@@ -135,64 +142,170 @@ class LiveRunnerDaemon:
                     "open_positions": len(self.ledger.all_positions()),
                 }
 
-            # 4. Generate orders if entries are permitted
+            # 4. Generate orders if entries are permitted using strategy signals and policies
             created_orders: list[Order] = []
             if self.context_factory is not None:
                 ctx = self.context_factory(ts)
                 for spec in self.strategy_specs:
                     spec_bucket = (
-                        BucketId(spec.family.upper())
-                        if spec.family.upper() in BucketId.__members__
+                        BucketId(
+                            spec.bucket.value if hasattr(spec.bucket, "value") else str(spec.bucket)
+                        )
+                        if hasattr(spec, "bucket")
                         else BucketId.CORE
                     )
                     if not self.risk.kill_switches.allows_entries(spec_bucket):
                         continue
 
-                    # Strategy evaluation loop
-                    for symbol in ctx.universe():
-                        latest_bar = ctx.latest(symbol)
-                        if latest_bar is None:
+                    signal_providers = [
+                        build_signal_provider(sig.provider, sig.params) for sig in spec.signals
+                    ]
+                    aggregator = build_aggregator(spec)
+                    policy = build_position_policy(spec)
+
+                    composite_signals: dict[Symbol, Any] = {}
+                    symbols = ctx.universe()
+                    if spec.universe.symbols:
+                        target_syms = {Symbol(s) for s in spec.universe.symbols}
+                        symbols = [s for s in symbols if s in target_syms]
+
+                    for sym in symbols:
+                        latest_bar = ctx.latest(sym)
+                        if latest_bar is not None:
+                            current_prices[sym] = latest_bar.close
+
+                        sym_signals = []
+                        for provider in signal_providers:
+                            sig = provider.evaluate(ctx, sym)
+                            if sig is not None:
+                                sym_signals.append(sig)
+
+                        comp = aggregator.combine(sym_signals, ts, sym)
+                        if comp is not None:
+                            composite_signals[sym] = comp
+
+                    bucket_acc = self.ledger.accounts[spec_bucket]
+                    bucket_positions = list(bucket_acc.positions.values())
+                    targets = policy.generate_targets(
+                        signals=composite_signals,
+                        current_positions=bucket_positions,
+                        current_prices=current_prices,
+                        total_equity=tot_eq,
+                        available_cash=bucket_acc.cash,
+                    )
+
+                    existing_pos_map = {p.symbol: p.qty for p in bucket_positions}
+                    for sym, target_qty in targets.items():
+                        curr_qty = existing_pos_map.get(sym, 0)
+                        delta_qty = target_qty - curr_qty
+                        if delta_qty == 0:
+                            continue
+                        px = current_prices.get(sym)
+                        if px is None or px <= Decimal("0"):
                             continue
 
-                        px = latest_bar.close
-                        current_prices[symbol] = px
+                        side = Side.BUY if delta_qty > 0 else Side.SELL
 
-                        # Check if already held
-                        existing_pos = self.ledger.accounts[spec_bucket].positions.get(symbol)
-                        if (
-                            existing_pos is None
-                            and len(self.ledger.accounts[spec_bucket].positions) < 5
-                        ):
-                            # Sizing calculation
-                            bucket_cash = self.ledger.accounts[spec_bucket].cash
-                            target_notional = bucket_cash * Decimal("0.15")
-                            if px > Decimal("0") and target_notional.amount >= px:
-                                target_qty = int(target_notional.amount // px)
-                                if target_qty > 0:
-                                    order = Order(
-                                        id=f"ord-{uuid.uuid4().hex[:10]}",
-                                        run_id=self.run_id,
-                                        strategy_version_id=spec.name,
-                                        bucket=spec_bucket,
-                                        symbol=symbol,
-                                        side=Side.BUY,
-                                        qty=Quantity(target_qty),
-                                        type=OrderType.MARKET,
-                                        tif=TimeInForce.DAY,
-                                        created_ts=ts,
-                                        limit_px=px,
-                                    )
-                                    try:
-                                        self.oms.submit_order(
-                                            order=order,
-                                            current_prices=current_prices,
-                                            symbol_sectors=symbol_sectors,
-                                            symbol_adv=symbol_adv,
-                                            symbol_correlations=symbol_correlations,
+                        # Compute stop price if stop config enabled (long and short awareness)
+                        stop_px: Decimal | None = None
+                        if hasattr(spec, "stop") and spec.stop:
+                            if target_qty > 0 and delta_qty > 0:
+                                if spec.stop.type == "atr_trailing":
+                                    hist = ctx.bars(sym, lookback=spec.stop.atr_period + 5)
+                                    if len(hist) >= spec.stop.atr_period:
+                                        atr_val = compute_atr(
+                                            highs=hist["high"].to_numpy(),
+                                            lows=hist["low"].to_numpy(),
+                                            closes=hist["close"].to_numpy(),
+                                            period=spec.stop.atr_period,
                                         )
-                                        created_orders.append(order)
-                                    except Exception as err:
-                                        logger.warning(f"Could not submit order {order.id}: {err}")
+                                        if atr_val is not None and atr_val > 0.0:
+                                            stop_distance = Decimal(
+                                                str(atr_val * spec.stop.multiple)
+                                            )
+                                            stop_px = max(Decimal("0.01"), px - stop_distance)
+                                elif spec.stop.type == "hard_pct":
+                                    pct_down = Decimal(str(spec.stop.pct))
+                                    stop_px = px * (Decimal("1.0") - pct_down)
+                            elif target_qty < 0 and delta_qty < 0:
+                                if spec.stop.type == "atr_trailing":
+                                    hist = ctx.bars(sym, lookback=spec.stop.atr_period + 5)
+                                    if len(hist) >= spec.stop.atr_period:
+                                        atr_val = compute_atr(
+                                            highs=hist["high"].to_numpy(),
+                                            lows=hist["low"].to_numpy(),
+                                            closes=hist["close"].to_numpy(),
+                                            period=spec.stop.atr_period,
+                                        )
+                                        if atr_val is not None and atr_val > 0.0:
+                                            stop_distance = Decimal(
+                                                str(atr_val * spec.stop.multiple)
+                                            )
+                                            stop_px = px + stop_distance
+                                elif spec.stop.type == "hard_pct":
+                                    pct_up = Decimal(str(spec.stop.pct))
+                                    stop_px = px * (Decimal("1.0") + pct_up)
+
+                        order = Order(
+                            id=f"ord-{uuid.uuid4().hex[:10]}",
+                            run_id=self.run_id,
+                            strategy_version_id=spec.name,
+                            bucket=spec_bucket,
+                            symbol=sym,
+                            side=side,
+                            qty=Quantity(abs(delta_qty)),
+                            type=OrderType.MARKET,
+                            tif=TimeInForce.DAY,
+                            created_ts=ts,
+                            limit_px=px,
+                            stop_px=stop_px,
+                        )
+                        try:
+                            self.oms.submit_order(
+                                order=order,
+                                current_prices=current_prices,
+                                symbol_sectors=symbol_sectors,
+                                symbol_adv=symbol_adv,
+                                symbol_correlations=symbol_correlations,
+                            )
+                            created_orders.append(order)
+                        except Exception as err:
+                            logger.warning(f"Could not submit order {order.id}: {err}")
+
+                # Ratchet ATR trailing stops on existing positions
+                for spec in self.strategy_specs:
+                    if hasattr(spec, "stop") and spec.stop and spec.stop.type == "atr_trailing":
+                        spec_bucket = (
+                            BucketId(
+                                spec.bucket.value
+                                if hasattr(spec.bucket, "value")
+                                else str(spec.bucket)
+                            )
+                            if hasattr(spec, "bucket")
+                            else BucketId.CORE
+                        )
+                        b_acc = self.ledger.accounts[spec_bucket]
+                        for p_sym, pos in list(b_acc.positions.items()):
+                            if pos.qty == 0 or pos.stop_px is None:
+                                continue
+                            hist = ctx.bars(p_sym, lookback=spec.stop.atr_period + 5)
+                            if len(hist) >= spec.stop.atr_period:
+                                atr_val = compute_atr(
+                                    highs=hist["high"].to_numpy(),
+                                    lows=hist["low"].to_numpy(),
+                                    closes=hist["close"].to_numpy(),
+                                    period=spec.stop.atr_period,
+                                )
+                                if atr_val is not None and atr_val > 0.0:
+                                    stop_dist = Decimal(str(atr_val * spec.stop.multiple))
+                                    current_px = current_prices.get(p_sym, pos.avg_price)
+                                    if pos.qty > 0:
+                                        cand_stop = max(Decimal("0.01"), current_px - stop_dist)
+                                        new_stop = max(pos.stop_px, cand_stop)
+                                    else:
+                                        cand_stop = current_px + stop_dist
+                                        new_stop = min(pos.stop_px, cand_stop)
+                                    b_acc.positions[p_sym] = replace(pos, stop_px=new_stop)
 
             # 5. Persist state for crash recovery
             self.recovery.persist_state(
@@ -250,29 +363,30 @@ class LiveRunnerDaemon:
             if order.bucket in buckets_to_flatten:
                 self.oms.cancel_order(oid)
 
-        # Generate immediate market sell orders to liquidate positions
+        # Generate immediate market orders to liquidate positions (sells for long, buys for short)
         for b_id in buckets_to_flatten:
             account = self.ledger.accounts[b_id]
             for sym, pos in list(account.positions.items()):
-                if pos.qty > 0:
-                    sell_order = Order(
-                        id=f"ord-flatten-{uuid.uuid4().hex[:8]}",
-                        run_id=self.run_id,
-                        strategy_version_id="emergency_flatten",
-                        bucket=b_id,
-                        symbol=sym,
-                        side=Side.SELL,
-                        qty=pos.qty,
-                        type=OrderType.MARKET,
-                        tif=TimeInForce.IOC,
-                        created_ts=ts,
-                    )
-                    try:
-                        self.oms.submit_order(sell_order, current_prices=current_prices)
-                    except Exception as err:
-                        logger.error(
-                            f"Failed to submit emergency liquidation order for {sym}: {err}"
-                        )
+                if pos.qty == 0:
+                    continue
+                side = Side.SELL if pos.qty > 0 else Side.BUY
+                abs_qty = abs(pos.qty)
+                flatten_order = Order(
+                    id=f"ord-flatten-{uuid.uuid4().hex[:8]}",
+                    run_id=self.run_id,
+                    strategy_version_id="emergency_flatten",
+                    bucket=b_id,
+                    symbol=sym,
+                    side=side,
+                    qty=Quantity(abs_qty),
+                    type=OrderType.MARKET,
+                    tif=TimeInForce.IOC,
+                    created_ts=ts,
+                )
+                try:
+                    self.oms.submit_order(flatten_order, current_prices=current_prices)
+                except Exception as err:
+                    logger.error(f"Failed to submit emergency liquidation order for {sym}: {err}")
 
     def _persist_cycle_data(
         self,
