@@ -22,6 +22,9 @@ import {
   LiveOrder,
   LiveFill,
   RiskStatus,
+  ShadowTelemetryDTO,
+  fetchShadowTelemetry,
+  verifyTOTPCode,
 } from "@/lib/api";
 import { MetricCard } from "@/components/MetricCard";
 import { InfoTooltip } from "@/components/Tooltip";
@@ -34,25 +37,31 @@ export default function LivePaperTradingPage() {
   const [orders, setOrders] = useState<LiveOrder[]>([]);
   const [fills, setFills] = useState<LiveFill[]>([]);
   const [risk, setRisk] = useState<RiskStatus | null>(null);
+  const [shadow, setShadow] = useState<ShadowTelemetryDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
   const [flattening, setFlattening] = useState(false);
+  const [totpModalOpen, setTotpModalOpen] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+  const [totpError, setTotpError] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
-      const [liveState, livePositions, liveOrders, liveFills, riskStatus] =
+      const [liveState, livePositions, liveOrders, liveFills, riskStatus, shadowData] =
         await Promise.all([
           api.getLiveState(),
           api.getLivePositions(),
           api.getLiveOrders(),
           api.getLiveFills(),
           api.getRiskStatus(),
+          fetchShadowTelemetry().catch(() => null),
         ]);
       setState(liveState);
       setPositions(livePositions);
       setOrders(liveOrders);
       setFills(liveFills);
       setRisk(riskStatus);
+      setShadow(shadowData);
     } catch (err) {
       console.error("Failed to fetch live data:", err);
     } finally {
@@ -106,14 +115,25 @@ export default function LivePaperTradingPage() {
     }
   };
 
-  const handleEmergencyFlatten = async () => {
-    if (!confirm(t("live.emergency_confirm"))) {
-      return;
-    }
-    setFlattening(true);
+  const handleEmergencyFlattenClick = () => {
+    setTotpCode("");
+    setTotpError("");
+    setTotpModalOpen(true);
+  };
+
+  const handleConfirmEmergencyFlatten = async () => {
     try {
-      await api.emergencyFlatten(undefined, "Operator manual dashboard action");
+      const res = await verifyTOTPCode(totpCode, "EMERGENCY_FLATTEN");
+      if (!res.valid) {
+        setTotpError(t("shadow.totp_invalid") || "Invalid 2FA code");
+        return;
+      }
+      setTotpModalOpen(false);
+      setFlattening(true);
+      await api.emergencyFlatten(undefined, "Operator manual dashboard action (TOTP verified)");
       await fetchData();
+    } catch (err) {
+      setTotpError("Verification failed");
     } finally {
       setFlattening(false);
     }
@@ -181,7 +201,7 @@ export default function LivePaperTradingPage() {
             <span>{t("common.refresh")}</span>
           </button>
           <button
-            onClick={handleEmergencyFlatten}
+            onClick={handleEmergencyFlattenClick}
             disabled={flattening}
             className="px-3 py-1.5 rounded bg-neg/10 border border-neg/40 text-xs font-mono text-neg hover:bg-neg/20 transition-colors flex items-center gap-1.5 font-semibold"
           >
@@ -504,6 +524,109 @@ export default function LivePaperTradingPage() {
           </div>
         </div>
       </div>
+
+      {/* Shadow Mode & Broker Divergence Telemetry (Phase 9) */}
+      <div className="space-y-3 border-t border-border pt-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="terminal-label">{t("shadow.telemetry_title")}</span>
+            <span className="terminal-badge border-pos/40 text-pos bg-pos/10 text-[10px]">IBKR Gateway / Shadow Sim</span>
+            <InfoTooltip content="Real-time quote latency, execution fill spread, and theoretical vs. live broker price divergence tracking." />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-surface border border-border rounded p-3">
+            <div className="text-xs font-mono text-text-3">{t("shadow.mean_slippage")}</div>
+            <div className="text-lg font-bold font-mono text-text-1 mt-1">
+              {shadow ? `${shadow.mean_slippage_bps.toFixed(2)} bps` : "0.00 bps"}
+            </div>
+            <div className="text-[10px] font-mono text-text-3 mt-0.5">
+              Max: {shadow ? `${shadow.max_slippage_bps.toFixed(2)} bps` : "0.00 bps"}
+            </div>
+          </div>
+
+          <div className="bg-surface border border-border rounded p-3">
+            <div className="text-xs font-mono text-text-3">{t("shadow.p95_slippage")}</div>
+            <div className="text-lg font-bold font-mono text-text-1 mt-1">
+              {shadow ? `${shadow.p95_slippage_bps.toFixed(2)} bps` : "0.00 bps"}
+            </div>
+            <div className="text-[10px] font-mono text-text-3 mt-0.5">
+              95% of fills within this slippage
+            </div>
+          </div>
+
+          <div className="bg-surface border border-border rounded p-3">
+            <div className="text-xs font-mono text-text-3">{t("shadow.quote_latency")}</div>
+            <div className="text-lg font-bold font-mono text-pos mt-1">
+              {shadow ? `${shadow.mean_quote_latency_ms.toFixed(1)} ms` : "0.0 ms"}
+            </div>
+            <div className="text-[10px] font-mono text-text-3 mt-0.5">
+              p95 latency: {shadow ? `${shadow.p95_quote_latency_ms.toFixed(1)} ms` : "0.0 ms"}
+            </div>
+          </div>
+
+          <div className="bg-surface border border-border rounded p-3">
+            <div className="text-xs font-mono text-text-3">{t("shadow.zero_or_improved")}</div>
+            <div className="text-lg font-bold font-mono text-pos mt-1">
+              {shadow && shadow.total_shadow_trades > 0
+                ? `${((shadow.zero_or_better_trades / shadow.total_shadow_trades) * 100).toFixed(1)}%`
+                : "100.0%"}
+            </div>
+            <div className="text-[10px] font-mono text-text-3 mt-0.5">
+              {shadow ? shadow.total_shadow_trades : 0} shadow trades recorded
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2FA TOTP Modal */}
+      {totpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-surface border border-border rounded-lg shadow-2xl max-w-md w-full p-6 space-y-4 font-mono">
+            <div className="flex items-center gap-3 border-b border-border pb-3 text-neg">
+              <ShieldAlert className="w-5 h-5" />
+              <h3 className="text-sm font-bold text-text-1">{t("shadow.totp_modal_title")}</h3>
+            </div>
+
+            <p className="text-xs text-text-2">
+              {t("shadow.totp_modal_desc")}
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-[11px] text-text-3 block">TOTP Code (6 Digits)</label>
+              <input
+                type="text"
+                maxLength={6}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                placeholder="000000"
+                className="w-full bg-surface-2 border border-border rounded px-3 py-2 text-center text-lg tracking-widest font-bold text-text-1 focus:outline-none focus:border-pos"
+              />
+              {totpError && <div className="text-xs text-neg font-bold mt-1">{totpError}</div>}
+              <div className="text-[10px] text-text-3">
+                Tip: Enter your Google Authenticator code or test code <span className="font-bold text-pos">000000</span> for local sandbox.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setTotpModalOpen(false)}
+                className="px-3 py-1.5 rounded bg-surface-2 hover:bg-surface border border-border text-xs text-text-2"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={handleConfirmEmergencyFlatten}
+                disabled={totpCode.length < 6}
+                className="px-4 py-1.5 rounded bg-neg text-white text-xs font-bold hover:bg-neg/80 disabled:opacity-50"
+              >
+                {t("shadow.totp_verify_btn")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

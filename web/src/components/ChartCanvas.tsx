@@ -32,8 +32,8 @@ export function ChartCanvas({
       return { pathD: "", minVal: 0, maxVal: 0, firstVal: 0, lastVal: 0, pctChange: 0 };
     }
 
-    const values = data.map((d) => d.value);
-    const min = isDrawdown ? Math.min(0, ...values) : Math.min(...values);
+    const values = isDrawdown ? data.map((d) => -Math.abs(d.value)) : data.map((d) => d.value);
+    const min = Math.min(...values);
     const max = isDrawdown ? 0 : Math.max(...values);
     const range = max - min || 1;
 

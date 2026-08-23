@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, SignalExploreData } from "@/lib/api";
+import { api, SignalExploreData, UniverseCandidate, UniverseScreenerResponse } from "@/lib/api";
 import { ChartCanvas } from "@/components/ChartCanvas";
 import { MetricCard } from "@/components/MetricCard";
 import { InfoTooltip } from "@/components/Tooltip";
+import { StrategyBlueprint } from "@/components/StrategyBlueprint";
 import { useTranslation } from "@/i18n";
-import { TrendingUp, Search, Sliders, Activity } from "lucide-react";
+import {
+  TrendingUp,
+  Search,
+  Sliders,
+  Activity,
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  Filter,
+  DollarSign,
+  Layers,
+} from "lucide-react";
 
 export default function SignalsExplorerPage() {
   const { t } = useTranslation();
@@ -14,6 +26,8 @@ export default function SignalsExplorerPage() {
   const [inputVal, setInputVal] = useState("SPY");
   const [data, setData] = useState<SignalExploreData | null>(null);
   const [activeIndicator, setActiveIndicator] = useState("rsi_14");
+  const [screener, setScreener] = useState<UniverseScreenerResponse | null>(null);
+  const [screenerFilter, setScreenerFilter] = useState<string>("ALL");
   const [loading, setLoading] = useState(false);
 
   const fetchSignals = async (sym: string) => {
@@ -25,6 +39,9 @@ export default function SignalsExplorerPage() {
 
   useEffect(() => {
     fetchSignals(symbol);
+    api.getUniverseScreener().then((res) => {
+      if (res) setScreener(res);
+    });
   }, [symbol]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -40,7 +57,6 @@ export default function SignalsExplorerPage() {
     ts: p.ts,
     value: p.signals[activeIndicator] ?? 0,
   }));
-  const volumeChartData = points.map((p) => ({ ts: p.ts, value: p.volume }));
 
   const latestPoint = points[points.length - 1];
   const latestClose = latestPoint ? latestPoint.close : 0;
@@ -58,6 +74,14 @@ export default function SignalsExplorerPage() {
     { key: "sma_200", label: "SMA 200" },
   ];
 
+  const filteredCandidates = screener
+    ? screener.candidates.filter((c) => {
+        if (screenerFilter === "QUALIFIED") return c.status === "QUALIFIED";
+        if (screenerFilter === "FILTERED") return c.status !== "QUALIFIED";
+        return true;
+      })
+    : [];
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -68,11 +92,11 @@ export default function SignalsExplorerPage() {
               {t("signals.title")}
             </h1>
             <span className="badge-terminal bg-surface-2 text-pos border border-border">
-              L1
+              L1-L4
             </span>
             <InfoTooltip
-              title="L1 Technical Signals"
-              content="Layer 1 calculates fast price momentum, trend-following filters, and volatility oscillators on historical OHLCV bars with strict zero-lookahead."
+              title="Alpha Signals & Universe Intelligence"
+              content="Layer 1 through 4 quantitative signal computation, dynamic universe liquidity screening, and technical indicators executing strictly without lookahead."
             />
           </div>
           <p className="text-xs text-text-2 font-mono mt-1">
@@ -111,7 +135,13 @@ export default function SignalsExplorerPage() {
           label={t("signals.rsi_label")}
           value={latestRsi.toFixed(1)}
           direction={latestRsi < 30 ? "pos" : latestRsi > 70 ? "neg" : "neutral"}
-          subValue={latestRsi < 30 ? t("signals.oversold_sub") : latestRsi > 70 ? t("signals.overbought_sub") : t("signals.neutral_sub")}
+          subValue={
+            latestRsi < 30
+              ? t("signals.oversold_sub")
+              : latestRsi > 70
+              ? t("signals.overbought_sub")
+              : t("signals.neutral_sub")
+          }
           tooltip={t("tooltips.rsi_desc")}
           tooltipTitle={t("tooltips.rsi_title")}
         />
@@ -119,7 +149,11 @@ export default function SignalsExplorerPage() {
           label={t("signals.sma200_label")}
           value={`$${latestSma200.toFixed(2)}`}
           direction={latestClose > latestSma200 ? "pos" : "neg"}
-          subValue={latestClose > latestSma200 ? t("signals.above_sma_sub") : t("signals.below_sma_sub")}
+          subValue={
+            latestClose > latestSma200
+              ? t("signals.above_sma_sub")
+              : t("signals.below_sma_sub")
+          }
           tooltip={t("tooltips.sma200_desc")}
           tooltipTitle={t("tooltips.sma200_title")}
         />
@@ -127,7 +161,11 @@ export default function SignalsExplorerPage() {
           label={t("signals.macd_label")}
           value={latestMacd.toFixed(2)}
           direction={latestMacd > 0 ? "pos" : "neg"}
-          subValue={latestMacd > 0 ? t("signals.pos_momentum_sub") : t("signals.neg_momentum_sub")}
+          subValue={
+            latestMacd > 0
+              ? t("signals.pos_momentum_sub")
+              : t("signals.neg_momentum_sub")
+          }
           tooltip={t("tooltips.macd_desc")}
           tooltipTitle={t("tooltips.macd_title")}
         />
@@ -180,6 +218,123 @@ export default function SignalsExplorerPage() {
           formatValue={(v) => v.toFixed(2)}
         />
       </div>
+
+      {/* Algorithmic Universe Selection Screener Panel */}
+      {screener && (
+        <div className="card-panel space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-pos" />
+              <div>
+                <h3 className="text-xs font-bold font-mono text-text-1 uppercase tracking-wider">
+                  Algorithmic Universe Selection & Liquidity Screener
+                </h3>
+                <p className="text-[11px] font-mono text-text-3">
+                  Screening rules: ADV(20) &ge; ${((screener.min_adv_usd) / 1_000_000).toFixed(0)}M · Price &ge; ${screener.min_price_usd.toFixed(2)} · ROIC &ge; 8% · Piotroski &ge; 6
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1 bg-surface-2 p-1 rounded border border-border">
+              <button
+                onClick={() => setScreenerFilter("ALL")}
+                className={`px-2.5 py-0.5 text-[11px] font-mono rounded transition-all ${
+                  screenerFilter === "ALL"
+                    ? "bg-surface-3 text-text-1 font-semibold border border-border"
+                    : "text-text-3 hover:text-text-1"
+                }`}
+              >
+                All ({screener.total_evaluated})
+              </button>
+              <button
+                onClick={() => setScreenerFilter("QUALIFIED")}
+                className={`px-2.5 py-0.5 text-[11px] font-mono rounded transition-all ${
+                  screenerFilter === "QUALIFIED"
+                    ? "bg-surface-3 text-pos font-semibold border border-border"
+                    : "text-text-3 hover:text-text-1"
+                }`}
+              >
+                Qualified ({screener.qualified_count})
+              </button>
+              <button
+                onClick={() => setScreenerFilter("FILTERED")}
+                className={`px-2.5 py-0.5 text-[11px] font-mono rounded transition-all ${
+                  screenerFilter === "FILTERED"
+                    ? "bg-surface-3 text-neg font-semibold border border-border"
+                    : "text-text-3 hover:text-text-1"
+                }`}
+              >
+                Filtered ({screener.filtered_count})
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="border-b border-border text-text-3 text-[10px] uppercase">
+                  <th className="pb-2.5 pl-2">Symbol</th>
+                  <th className="pb-2.5">Price</th>
+                  <th className="pb-2.5">20-day ADV ($)</th>
+                  <th className="pb-2.5">ROIC (%)</th>
+                  <th className="pb-2.5">Piotroski F-Score</th>
+                  <th className="pb-2.5">Liquidity Status</th>
+                  <th className="pb-2.5 pr-2 text-right">Universe Eligibility</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredCandidates.map((c) => (
+                  <tr
+                    key={c.symbol}
+                    className="hover:bg-surface-2 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSymbol(c.symbol);
+                      setInputVal(c.symbol);
+                    }}
+                  >
+                    <td className="py-2.5 pl-2 font-bold text-text-1">{c.symbol}</td>
+                    <td className="py-2.5 text-text-2">${c.price.toFixed(2)}</td>
+                    <td className="py-2.5 text-text-2">
+                      ${(c.adv_20_usd / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M
+                    </td>
+                    <td className="py-2.5 text-text-2">
+                      {c.roic_pct !== undefined ? `${c.roic_pct.toFixed(1)}%` : "N/A"}
+                    </td>
+                    <td className="py-2.5 text-text-2">
+                      {c.piotroski_f_score !== undefined ? `${c.piotroski_f_score}/9` : "N/A"}
+                    </td>
+                    <td className="py-2.5">
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] ${
+                          c.is_liquid ? "text-pos font-semibold" : "text-neg font-semibold"
+                        }`}
+                      >
+                        {c.is_liquid ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                        {c.is_liquid ? "ADV >= $20M" : "Illiquid (< $20M)"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-2 text-right">
+                      <span
+                        className={`terminal-badge ${
+                          c.status === "QUALIFIED"
+                            ? "bg-pos/15 text-pos border border-pos/30"
+                            : "bg-neg/15 text-neg border border-neg/30"
+                        }`}
+                      >
+                        {c.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Strategy Blueprint & Multi-Phase Execution Architecture */}
+      <StrategyBlueprint />
     </div>
   );
 }

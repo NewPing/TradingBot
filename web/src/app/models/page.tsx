@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { InfoTooltip } from "@/components/Tooltip";
 import { MetricCard } from "@/components/MetricCard";
+import { StrategyBlueprint } from "@/components/StrategyBlueprint";
 import { api, ModelDetail, RegimeDetail } from "@/lib/api";
 import { useTranslation } from "@/i18n";
 
@@ -409,6 +410,9 @@ export default function ModelsAndRegimesPage() {
           </div>
         )}
       </div>
+
+      {/* Quantitative Blueprint & Mathematical Model Architecture */}
+      <StrategyBlueprint />
     </div>
   );
 }

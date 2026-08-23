@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, LineageResponse, StrategyVersion } from "@/lib/api";
 import { InfoTooltip } from "@/components/Tooltip";
+import { StrategyDetailModal } from "@/components/StrategyDetailModal";
 import { useTranslation } from "@/i18n";
 import {
   Layers,
@@ -25,6 +26,7 @@ export default function VersionsPage() {
   const [selectedFamily, setSelectedFamily] = useState<string>("ALL");
   const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
   const [activeLineage, setActiveLineage] = useState<LineageResponse | null>(null);
+  const [selectedStrategyForInspect, setSelectedStrategyForInspect] = useState<StrategyVersion | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchVersions = async () => {
@@ -112,6 +114,90 @@ export default function VersionsPage() {
         <Link href="/docs" className="text-pos hover:underline text-[11px] shrink-0 font-bold">
           {t("nav.docs")} &rarr;
         </Link>
+      </div>
+
+      {/* Strategy Evolution Pipeline Showcase */}
+      <div className="card-panel space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <GitBranch className="w-4 h-4 text-pos" />
+            <h3 className="text-xs font-bold font-mono text-text-1 uppercase tracking-wider">
+              Strategy Evolution Pipeline: Generations Gen 1 &rarr; Gen 5
+            </h3>
+          </div>
+          <span className="terminal-badge bg-pos/15 border-pos/30 text-pos text-[10px]">
+            Quantitative Lineage Hierarchy
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {[
+            {
+              gen: "Gen 1: Baseline Rules",
+              slugs: "core_trend_1.0.0",
+              layers: "L1 Technical",
+              desc: "Simple mechanical indicators (200 SMA trend filter, RSI pullbacks, ATR stops). Equal weighting.",
+              color: "border-text-3/40 hover:border-text-1",
+              badge: "bg-surface-3 text-text-2",
+            },
+            {
+              gen: "Gen 2: Cross-Sectional Momentum",
+              slugs: "core_trend_2.0.0",
+              layers: "L1 + L2 Statistical",
+              desc: "12-1 Month Relative Strength ranking across large-cap universe. Inverse-volatility risk sizing.",
+              color: "border-warning/40 hover:border-warning",
+              badge: "bg-warning/15 text-warning",
+            },
+            {
+              gen: "Gen 3: ML & Regime-Aware",
+              slugs: "core_trend_3.0.0",
+              layers: "L1 + L2 + L3 Fundamental",
+              desc: "LightGBM return predictions + 4-Quadrant Macro Regime defense + Point-in-Time Sloan accrual quality.",
+              color: "border-pos/40 hover:border-pos",
+              badge: "bg-pos/15 text-pos",
+            },
+            {
+              gen: "Gen 4: Autonomous Multi-Factor",
+              slugs: "core_trend_4.0.0",
+              layers: "L1 + L2 + L3 + L4 Full Stack",
+              desc: "Full synergy: Technical + LightGBM + PIT GARP + Real-time LLM news sentiment & impact horizons.",
+              color: "border-accent/40 hover:border-accent",
+              badge: "bg-accent/15 text-accent",
+            },
+            {
+              gen: "Gen 5: Executive Catalyst & Macro AI",
+              slugs: "core_trend_5.0.0",
+              layers: "L1-L4 + CEO Catalysts",
+              desc: "CEO announcements (Musk/Jensen), breakthrough AI product cycles, multi-billion enterprise contracts & tariff shock defense.",
+              color: "border-pos/60 bg-pos/5 hover:border-pos",
+              badge: "bg-pos/20 text-pos font-bold",
+            },
+          ].map((item, idx) => (
+            <div
+              key={idx}
+              onClick={() => {
+                const match = versions.find((v) => v.id === item.slugs || v.id.includes(item.slugs.split('_')[1] || ''));
+                if (match) setSelectedStrategyForInspect(match);
+              }}
+              className={`p-3.5 rounded border bg-surface-2 space-y-2 cursor-pointer transition-all hover:scale-[1.02] shadow-sm ${item.color}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-text-1">{item.gen}</span>
+                <span className="text-[10px] text-pos font-bold">Inspect &rarr;</span>
+              </div>
+              <span className={`terminal-badge text-[10px] ${item.badge}`}>
+                {item.layers}
+              </span>
+              <p className="text-[11px] font-mono text-text-2 leading-relaxed">
+                {item.desc}
+              </p>
+              <div className="text-[10px] font-mono text-text-3 pt-1 border-t border-border flex justify-between">
+                <span>Spec: {item.slugs}</span>
+                <span className="text-pos font-bold underline">How it works</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Family Filter Tabs */}
@@ -210,7 +296,15 @@ export default function VersionsPage() {
                           )}
                         </button>
                       </td>
-                      <td className="py-3 font-semibold text-text-1">{v.id}</td>
+                      <td className="py-3">
+                        <button
+                          onClick={() => setSelectedStrategyForInspect(v)}
+                          className="font-bold text-text-1 hover:text-pos flex items-center gap-1.5 transition-colors group text-left"
+                        >
+                          <span>{v.id}</span>
+                          <span className="text-[10px] text-pos opacity-0 group-hover:opacity-100 transition-opacity">🔍</span>
+                        </button>
+                      </td>
                       <td className="py-3 text-text-2">{v.family}</td>
                       <td className="py-3">
                         <span className="terminal-badge bg-surface-2 border-border text-pos">
@@ -233,7 +327,13 @@ export default function VersionsPage() {
                       <td className="py-3 text-text-3 text-[11px]">
                         {new Date(v.created_at).toLocaleDateString()}
                       </td>
-                      <td className="py-3 text-right pr-2">
+                      <td className="py-3 text-right pr-2 space-x-1.5">
+                        <button
+                          onClick={() => setSelectedStrategyForInspect(v)}
+                          className="px-2.5 py-1 rounded bg-pos/10 border border-pos/40 text-pos hover:bg-pos/20 text-[11px] font-bold font-mono transition-all"
+                        >
+                          🔍 {t("versions.inspect_explain_btn") || "Inspect & Explain"}
+                        </button>
                         <button
                           onClick={() => handleShowLineage(v.id)}
                           className="btn-terminal py-1 px-2 text-[11px]"
@@ -329,6 +429,14 @@ export default function VersionsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Interactive Strategy Detail & Architecture Inspector */}
+      {selectedStrategyForInspect && (
+        <StrategyDetailModal
+          version={selectedStrategyForInspect}
+          onClose={() => setSelectedStrategyForInspect(null)}
+        />
       )}
     </div>
   );

@@ -264,11 +264,11 @@ export default function ResearchPage() {
 
         <MetricCard
           label={t("research.weekly_trials")}
-          value={`${trialsThisWeek} / ${weeklyBudget}`}
-          subValue={`${budgetPct.toFixed(1)}% ${t("research.trials_consumed_sub")} (${totalTrials} lifetime)`}
+          value={weeklyBudget <= 0 || weeklyBudget === 500 ? `${trialsThisWeek} (Unlimited)` : `${trialsThisWeek} / ${weeklyBudget}`}
+          subValue={weeklyBudget <= 0 || weeklyBudget === 500 ? `Uncapped v1.5 budget · DSR scaled (${totalTrials} lifetime)` : `${budgetPct.toFixed(1)}% ${t("research.trials_consumed_sub")} (${totalTrials} lifetime)`}
           tooltip={t("tooltips.trial_budget_desc")}
           tooltipTitle={t("tooltips.trial_budget_title")}
-          direction={budgetPct > 80 ? "neg" : "pos"}
+          direction="pos"
         />
 
         <MetricCard

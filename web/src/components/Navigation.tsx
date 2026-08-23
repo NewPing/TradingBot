@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   Newspaper,
   FlaskConical,
+  Receipt,
   BookOpen,
   Sparkles,
 } from "lucide-react";
@@ -36,6 +37,7 @@ export function Navigation() {
     { href: "/fundamentals", label: t("nav.fundamentals"), icon: FileSpreadsheet },
     { href: "/narrative", label: t("nav.narrative"), icon: Newspaper },
     { href: "/research", label: t("nav.research"), icon: FlaskConical },
+    { href: "/taxes", label: t("nav.taxes"), icon: Receipt },
     { href: "/docs", label: t("nav.docs"), icon: BookOpen },
   ];
 
