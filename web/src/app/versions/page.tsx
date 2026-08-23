@@ -31,9 +31,18 @@ export default function VersionsPage() {
 
   const fetchVersions = async () => {
     setLoading(true);
-    const data = await api.getVersions(selectedFamily === "ALL" ? undefined : selectedFamily);
-    setVersions(data);
-    setLoading(false);
+    try {
+      let data = await api.getVersions(selectedFamily === "ALL" ? undefined : selectedFamily);
+      if (data.length === 0 && selectedFamily === "ALL") {
+        await api.syncStrategies();
+        data = await api.getVersions();
+      }
+      setVersions(data);
+    } catch {
+      setVersions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
