@@ -8,8 +8,8 @@ import {
   GitCompare,
   TrendingUp,
   Terminal,
-  Cpu,
 } from "lucide-react";
+import { InfoTooltip } from "./Tooltip";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -73,15 +73,36 @@ export function Navigation() {
       {/* Footer Info */}
       <div className="border-t border-border pt-3 space-y-2 text-[11px] font-mono text-text-3">
         <div className="flex items-center justify-between">
-          <span>PARITY</span>
-          <span className="text-pos">ENFORCED</span>
+          <div className="flex items-center">
+            <span>PARITY</span>
+            <InfoTooltip
+              title="Code Parity"
+              content="Backtest, paper simulation, and live modes execute the exact same trading logic and risk checks. Only the clock and broker connector change."
+              side="right"
+            />
+          </div>
+          <span className="text-pos font-semibold">ENFORCED</span>
         </div>
         <div className="flex items-center justify-between">
-          <span>LOOKAHEAD</span>
-          <span className="text-pos">ZERO</span>
+          <div className="flex items-center">
+            <span>LOOKAHEAD</span>
+            <InfoTooltip
+              title="Zero Lookahead Bias"
+              content="Signals and decisions can only see historical market bars up to the exact simulated moment (t <= clock.now). Future price data is completely blocked."
+              side="right"
+            />
+          </div>
+          <span className="text-pos font-semibold">ZERO</span>
         </div>
         <div className="flex items-center justify-between">
-          <span>LIVE TRADING</span>
+          <div className="flex items-center">
+            <span>LIVE TRADING</span>
+            <InfoTooltip
+              title="Live Safety Lock"
+              content="Real-money execution is disabled at the root configuration level. Strategies must first pass 90 days of paper trading and validation gates."
+              side="right"
+            />
+          </div>
           <span className="text-text-3">LOCKED</span>
         </div>
       </div>

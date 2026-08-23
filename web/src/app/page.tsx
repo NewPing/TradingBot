@@ -62,23 +62,31 @@ export default function OverviewPage() {
           label="STRATEGY VERSIONS"
           value={versions.length}
           subValue={`${new Set(versions.map((v) => v.family)).size} Unique Families`}
+          tooltip="Unique trading strategy specifications currently registered in the database, versioned with SHA-256 signatures."
+          tooltipTitle="Strategy Versions"
         />
         <MetricCard
           label="TOTAL RUNS RECORDED"
           value={runs.length}
           subValue="Zero-lookahead backtests"
+          tooltip="Historical backtests executed with t+1 order fills and full transaction cost simulation."
+          tooltipTitle="Recorded Runs"
         />
         <MetricCard
           label="TRIAL BUDGET CONSUMED"
           value={budget ? `${budget.trials_this_week} / ${budget.weekly_budget}` : "0 / 500"}
           subValue={budget ? `${budget.budget_remaining} trials remaining this week` : "Budget active"}
           direction={budget && budget.budget_pct_used > 80 ? "neg" : "neutral"}
+          tooltip="Weekly limit on strategy trials (default 500/week) to mathematically prevent p-hacking and overfitting to noise."
+          tooltipTitle="Multiple Testing Budget"
         />
         <MetricCard
           label="INVARIANTS STATUS"
           value="12 / 12 PASS"
           subValue="Parity, Money, UTC, Lookahead"
           direction="pos"
+          tooltip="Hard mathematical constraints: zero future lookahead, whole-share integer quantities, exact Decimal money (no floats), and UTC timestamps."
+          tooltipTitle="System Invariants"
         />
       </div>
 

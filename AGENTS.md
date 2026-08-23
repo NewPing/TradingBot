@@ -34,6 +34,7 @@ You are building ATLAS, an autonomous equity trading system.
 11. **NO LIVE TRADING:** `ATLAS_ALLOW_LIVE` remains `false`. Never write code that enables live execution or bypasses live safety guards.
 12. **RECORD NEGATIVE RESULTS:** Failed backtests and negative results are valuable. Record every trial in the `trials` table; never silently tune parameters without trial incrementing.
 13. **ALWAYS RUNNING & TESTABLE:** The backend engine API (`http://localhost:8001`) and webapp dashboard (`http://localhost:3000`) must always be launched and verified running after every step/phase so the user can immediately test the solution.
+14. **PLAIN-LANGUAGE UI TOOLTIPS:** All UI metrics, indicators, and system invariants must provide concise, beginner-friendly tooltips explaining what they mean in plain English (e.g., RSI 14, 200 SMA, Parity, Lookahead, CAGR, Sharpe) so any user has instant clarity.
 
 ## Definition of Done
 - [ ] Strict type hints (`mypy --strict` passes clean on `core/`, `risk/`, `portfolio/`, `backtest/`, `execution/`).
@@ -42,6 +43,7 @@ You are building ATLAS, an autonomous equity trading system.
 - [ ] `ruff check` and `ruff format` clean.
 - [ ] Documentation updated for any schema, contract, or interface change.
 - [ ] Both Backend API (`:8001`) and Webapp (`:3000`) built, running live at the latest version, and verified testable.
+- [ ] Non-obvious UI metrics, indicators, and system terms equipped with plain-English tooltips.
 - [ ] `notes.md` and `docs/working_notes.md` updated with current state, next tasks, and session log entry.
 - [ ] Conventional Commit referencing the phase (`phase-N/slug`).
 

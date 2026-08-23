@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, CompareData, Run } from "@/lib/api";
 import { ChartCanvas } from "@/components/ChartCanvas";
+import { InfoTooltip } from "@/components/Tooltip";
 import { GitCompare, ArrowUpRight, ArrowDownRight, Layers, Play } from "lucide-react";
 
 function CompareContent() {
@@ -46,16 +47,76 @@ function CompareContent() {
   };
 
   const metricRows = [
-    { key: "cagr", label: "CAGR (%)", format: (v: number) => `${(v * 100).toFixed(2)}%`, higherIsBetter: true },
-    { key: "sharpe", label: "SHARPE RATIO", format: (v: number) => v.toFixed(2), higherIsBetter: true },
-    { key: "sortino", label: "SORTINO RATIO", format: (v: number) => v.toFixed(2), higherIsBetter: true },
-    { key: "max_drawdown", label: "MAX DRAWDOWN (%)", format: (v: number) => `${(v * 100).toFixed(2)}%`, higherIsBetter: false },
-    { key: "calmar", label: "CALMAR RATIO", format: (v: number) => v.toFixed(2), higherIsBetter: true },
-    { key: "win_rate", label: "WIN RATE (%)", format: (v: number) => `${(v * 100).toFixed(1)}%`, higherIsBetter: true },
-    { key: "profit_factor", label: "PROFIT FACTOR", format: (v: number) => v.toFixed(2), higherIsBetter: true },
-    { key: "expectancy_pct", label: "EXPECTANCY (%)", format: (v: number) => `${(v * 100).toFixed(2)}%`, higherIsBetter: true },
-    { key: "total_trades", label: "TOTAL TRADES", format: (v: number) => Math.round(v).toString(), higherIsBetter: null },
-    { key: "turnover_annual", label: "ANNUAL TURNOVER", format: (v: number) => `${v.toFixed(1)}x`, higherIsBetter: null },
+    {
+      key: "cagr",
+      label: "CAGR (%)",
+      format: (v: number) => `${(v * 100).toFixed(2)}%`,
+      higherIsBetter: true,
+      tooltip: "Compound Annual Growth Rate — Smoothed yearly annualized return rate.",
+    },
+    {
+      key: "sharpe",
+      label: "SHARPE RATIO",
+      format: (v: number) => v.toFixed(2),
+      higherIsBetter: true,
+      tooltip: "Risk-adjusted return measuring excess profit per unit of annualized total volatility (>1.0 is good, >2.0 is great).",
+    },
+    {
+      key: "sortino",
+      label: "SORTINO RATIO",
+      format: (v: number) => v.toFixed(2),
+      higherIsBetter: true,
+      tooltip: "Downside risk-adjusted return. Only penalizes negative volatility and harmful drops while ignoring upside gains.",
+    },
+    {
+      key: "max_drawdown",
+      label: "MAX DRAWDOWN (%)",
+      format: (v: number) => `${(v * 100).toFixed(2)}%`,
+      higherIsBetter: false,
+      tooltip: "The largest peak-to-trough drop in account equity over the entire simulation.",
+    },
+    {
+      key: "calmar",
+      label: "CALMAR RATIO",
+      format: (v: number) => v.toFixed(2),
+      higherIsBetter: true,
+      tooltip: "CAGR divided by Max Drawdown. Measures how quickly the strategy recovers from its worst decline.",
+    },
+    {
+      key: "win_rate",
+      label: "WIN RATE (%)",
+      format: (v: number) => `${(v * 100).toFixed(1)}%`,
+      higherIsBetter: true,
+      tooltip: "Percentage of total closed trades that ended with a positive net profit.",
+    },
+    {
+      key: "profit_factor",
+      label: "PROFIT FACTOR",
+      format: (v: number) => v.toFixed(2),
+      higherIsBetter: true,
+      tooltip: "Gross profits divided by gross losses (>1.0 indicates profitability).",
+    },
+    {
+      key: "expectancy_pct",
+      label: "EXPECTANCY (%)",
+      format: (v: number) => `${(v * 100).toFixed(2)}%`,
+      higherIsBetter: true,
+      tooltip: "Average expected percentage return per trade across all wins and losses.",
+    },
+    {
+      key: "total_trades",
+      label: "TOTAL TRADES",
+      format: (v: number) => Math.round(v).toString(),
+      higherIsBetter: null,
+      tooltip: "Total count of round-trip trade executions recorded in the backtest.",
+    },
+    {
+      key: "turnover_annual",
+      label: "ANNUAL TURNOVER",
+      format: (v: number) => `${v.toFixed(1)}x`,
+      higherIsBetter: null,
+      tooltip: "How many times the total portfolio capital was turned over in trades per year.",
+    },
   ];
 
   return (
@@ -171,7 +232,12 @@ function CompareContent() {
                 <tbody className="divide-y divide-border-subtle">
                   {metricRows.map((row) => (
                     <tr key={row.key} className="hover:bg-surface-2 transition-colors">
-                      <td className="py-2.5 pl-2 font-medium text-text-2">{row.label}</td>
+                      <td className="py-2.5 pl-2 font-medium text-text-2">
+                        <span className="inline-flex items-center">
+                          {row.label}
+                          <InfoTooltip content={row.tooltip} title={row.label} />
+                        </span>
+                      </td>
                       {compareData.runs.map((r) => {
                         const val = compareData.metrics_diff[row.key]?.[r.id] ?? 0;
                         let cellClass = "text-text-1";

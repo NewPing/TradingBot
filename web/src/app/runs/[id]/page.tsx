@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, EquityPoint, Run, RunTrade } from "@/lib/api";
 import { MetricCard } from "@/components/MetricCard";
 import { ChartCanvas } from "@/components/ChartCanvas";
+import { InfoTooltip } from "@/components/Tooltip";
 import {
   ArrowLeft,
   ShieldCheck,
@@ -107,39 +108,55 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           label="CAGR"
           value={`${(cagr * 100).toFixed(2)}%`}
           direction={cagr >= 0 ? "pos" : "neg"}
+          tooltip="Compound Annual Growth Rate — The smoothed annual geometric return rate of the portfolio."
+          tooltipTitle="CAGR"
         />
         <MetricCard
           label="SHARPE RATIO"
           value={sharpe.toFixed(2)}
           direction={sharpe >= 1.0 ? "pos" : sharpe < 0 ? "neg" : "neutral"}
+          tooltip="Risk-adjusted performance measure: excess return above zero divided by annual volatility. Values >1.0 are good, >2.0 are exceptional."
+          tooltipTitle="Sharpe Ratio"
         />
         <MetricCard
           label="MAX DRAWDOWN"
           value={`${(maxDd * 100).toFixed(2)}%`}
           direction={maxDd < 0.15 ? "pos" : "neg"}
+          tooltip="The maximum percentage drop from the highest equity peak to the lowest trough during the backtest."
+          tooltipTitle="Maximum Drawdown"
         />
         <MetricCard
           label="WIN RATE"
           value={`${(winRate * 100).toFixed(1)}%`}
           subValue={`${trades.length} Total Trades`}
+          tooltip="The percentage of closed trades that generated a positive net dollar return."
+          tooltipTitle="Win Rate"
         />
         <MetricCard
           label="SORTINO RATIO"
           value={sortino.toFixed(2)}
+          tooltip="Downside risk-adjusted metric: penalizes only negative return variance, ignoring upside jumps."
+          tooltipTitle="Sortino Ratio"
         />
         <MetricCard
           label="CALMAR RATIO"
           value={calmar.toFixed(2)}
+          tooltip="CAGR divided by Max Drawdown. Quantifies return achieved per unit of worst drop."
+          tooltipTitle="Calmar Ratio"
         />
         <MetricCard
           label="PROFIT FACTOR"
           value={profitFactor.toFixed(2)}
           direction={profitFactor >= 1.2 ? "pos" : profitFactor < 1.0 ? "neg" : "neutral"}
+          tooltip="Total gross winning dollars divided by total gross losing dollars (>1.0 indicates profitability)."
+          tooltipTitle="Profit Factor"
         />
         <MetricCard
           label="EXPECTANCY"
           value={`${(expectancy * 100).toFixed(2)}%`}
           direction={expectancy >= 0 ? "pos" : "neg"}
+          tooltip="Expected percentage gain per dollar placed in a trade across wins and losses."
+          tooltipTitle="Trade Expectancy"
         />
       </div>
 
@@ -268,27 +285,63 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-mono">
           <div className="bg-surface-2 border border-border rounded p-3">
-            <div className="text-[10px] text-text-3 uppercase">GIT COMMIT SHA</div>
+            <div className="text-[10px] text-text-3 uppercase flex items-center justify-between">
+              <span>GIT COMMIT SHA</span>
+              <InfoTooltip
+                title="Git Commit SHA"
+                content="The exact git commit of the engine codebase used to run this backtest."
+              />
+            </div>
             <div className="text-text-1 font-semibold mt-1">{run.git_sha}</div>
           </div>
           <div className="bg-surface-2 border border-border rounded p-3">
-            <div className="text-[10px] text-text-3 uppercase">SPECIFICATION SHA-256</div>
+            <div className="text-[10px] text-text-3 uppercase flex items-center justify-between">
+              <span>SPECIFICATION SHA-256</span>
+              <InfoTooltip
+                title="Strategy Hash"
+                content="Cryptographic fingerprint of the strategy YAML parameters."
+              />
+            </div>
             <div className="text-text-1 font-semibold mt-1">{run.spec_hash}</div>
           </div>
           <div className="bg-surface-2 border border-border rounded p-3">
-            <div className="text-[10px] text-text-3 uppercase">COST MODEL SIGNATURE</div>
+            <div className="text-[10px] text-text-3 uppercase flex items-center justify-between">
+              <span>COST MODEL SIGNATURE</span>
+              <InfoTooltip
+                title="Cost Model"
+                content="Pessimistic transaction cost configuration (spread, market-impact slippage, SEC and FINRA fees, commissions)."
+              />
+            </div>
             <div className="text-text-1 font-semibold mt-1">{run.cost_model_hash}</div>
           </div>
           <div className="bg-surface-2 border border-border rounded p-3">
-            <div className="text-[10px] text-text-3 uppercase">DATA SNAPSHOT ID</div>
+            <div className="text-[10px] text-text-3 uppercase flex items-center justify-between">
+              <span>DATA SNAPSHOT ID</span>
+              <InfoTooltip
+                title="Data Snapshot"
+                content="Immutable historical Parquet snapshot dataset ensuring byte-identical reproducibility."
+              />
+            </div>
             <div className="text-text-1 font-semibold mt-1">{run.data_snapshot_id}</div>
           </div>
           <div className="bg-surface-2 border border-border rounded p-3">
-            <div className="text-[10px] text-text-3 uppercase">EXECUTION RANDOM SEED</div>
+            <div className="text-[10px] text-text-3 uppercase flex items-center justify-between">
+              <span>EXECUTION RANDOM SEED</span>
+              <InfoTooltip
+                title="Random Seed"
+                content="Deterministic pseudo-random seed (e.g. 42) guaranteeing reproducible order tie-breaking."
+              />
+            </div>
             <div className="text-text-1 font-semibold mt-1">{run.seed}</div>
           </div>
           <div className="bg-surface-2 border border-border rounded p-3">
-            <div className="text-[10px] text-text-3 uppercase">SYSTEM & RUNTIME VERSIONS</div>
+            <div className="text-[10px] text-text-3 uppercase flex items-center justify-between">
+              <span>SYSTEM & RUNTIME VERSIONS</span>
+              <InfoTooltip
+                title="Library Versions"
+                content="Captured runtime package versions (Polars, NumPy, SQLAlchemy, etc.) recorded for forensic audit."
+              />
+            </div>
             <div className="text-text-2 mt-1 text-[11px] truncate">
               {Object.entries(run.lib_versions || {})
                 .map(([k, v]) => `${k}:${v}`)

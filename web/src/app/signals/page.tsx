@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, SignalExploreData } from "@/lib/api";
 import { ChartCanvas } from "@/components/ChartCanvas";
 import { MetricCard } from "@/components/MetricCard";
+import { InfoTooltip } from "@/components/Tooltip";
 import { TrendingUp, Search, Sliders, Activity } from "lucide-react";
 
 export default function SignalsExplorerPage() {
@@ -92,24 +93,32 @@ export default function SignalsExplorerPage() {
           label={`CLOSE (${symbol})`}
           value={`$${latestClose.toFixed(2)}`}
           subValue={latestPoint ? new Date(latestPoint.ts).toLocaleDateString() : ""}
+          tooltip={`Latest observed adjusted closing price for ticker ${symbol}.`}
+          tooltipTitle="Closing Price"
         />
         <MetricCard
           label="RSI (14)"
           value={latestRsi.toFixed(1)}
           direction={latestRsi < 30 ? "pos" : latestRsi > 70 ? "neg" : "neutral"}
           subValue={latestRsi < 30 ? "Oversold (<30)" : latestRsi > 70 ? "Overbought (>70)" : "Neutral"}
+          tooltip="Relative Strength Index (14-day): Measures momentum on a 0–100 scale. Below 30 means heavily sold (bargain bounce zone), above 70 means overbought (stretched)."
+          tooltipTitle="RSI (Relative Strength Index)"
         />
         <MetricCard
           label="200-DAY SMA"
           value={`$${latestSma200.toFixed(2)}`}
           direction={latestClose > latestSma200 ? "pos" : "neg"}
           subValue={latestClose > latestSma200 ? "Above 200 SMA (Bullish)" : "Below 200 SMA"}
+          tooltip="200-Day Simple Moving Average: The benchmark long-term trend line (~10 months). Stock trading above this line is in an overall uptrend."
+          tooltipTitle="200-Day Moving Average"
         />
         <MetricCard
           label="MACD OSCILLATOR"
           value={latestMacd.toFixed(2)}
           direction={latestMacd > 0 ? "pos" : "neg"}
           subValue={latestMacd > 0 ? "Positive Momentum" : "Negative Momentum"}
+          tooltip="Moving Average Convergence Divergence: Compares 12-day and 26-day price trends. Positive values indicate accelerating upward price momentum."
+          tooltipTitle="MACD Momentum"
         />
       </div>
 

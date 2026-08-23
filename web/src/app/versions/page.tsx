@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, LineageResponse, StrategyVersion } from "@/lib/api";
+import { InfoTooltip } from "@/components/Tooltip";
 import {
   Layers,
   GitBranch,
@@ -120,11 +121,43 @@ export default function VersionsPage() {
             <thead>
               <tr className="border-b border-border text-text-3 text-[10px] uppercase">
                 <th className="pb-3 pl-2 w-8"></th>
-                <th className="pb-3">VERSION ID</th>
+                <th className="pb-3">
+                  <span className="inline-flex items-center">
+                    VERSION ID
+                    <InfoTooltip
+                      title="Strategy Version ID"
+                      content="Unique family identifier combined with semantic versioning (e.g. core_trend_1.0.0)."
+                    />
+                  </span>
+                </th>
                 <th className="pb-3">FAMILY</th>
-                <th className="pb-3">STATUS</th>
-                <th className="pb-3">PARENT LINEAGE</th>
-                <th className="pb-3">SPEC HASH</th>
+                <th className="pb-3">
+                  <span className="inline-flex items-center">
+                    STATUS
+                    <InfoTooltip
+                      title="Promotion Stage"
+                      content="RESEARCH (Fitting) -> CANDIDATE (Passed statistical gates) -> PAPER (90-day forward test) -> SHADOW ($0 live order comparison) -> LIVE (Real money)."
+                    />
+                  </span>
+                </th>
+                <th className="pb-3">
+                  <span className="inline-flex items-center">
+                    PARENT LINEAGE
+                    <InfoTooltip
+                      title="Ancestral Lineage"
+                      content="The parent strategy version this version was derived or tuned from."
+                    />
+                  </span>
+                </th>
+                <th className="pb-3">
+                  <span className="inline-flex items-center">
+                    SPEC HASH
+                    <InfoTooltip
+                      title="SHA-256 Spec Hash"
+                      content="Cryptographic signature of the exact YAML parameters. If parameters change, the hash changes and immutability rules prevent silent overwriting."
+                    />
+                  </span>
+                </th>
                 <th className="pb-3">CREATED</th>
                 <th className="pb-3 text-right pr-2">ACTIONS</th>
               </tr>
