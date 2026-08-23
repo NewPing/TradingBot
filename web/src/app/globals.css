@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a0a;
+  --bg-sidebar: #0d0d0d;
+  --surface: #141414;
+  --surface-2: #1c1c1c;
+  --active: #1a1a1a;
+  --border: #262626;
+  --border-subtle: #1f1f1f;
+  --text-1: #ededed;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --pos: #22c55e;
+  --neg: #ef4444;
+  --warn: #f59e0b;
+  --info: #38bdf8;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+.terminal-badge {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-mono font-medium border;
+}
+
+.terminal-label {
+  @apply text-[11px] font-mono uppercase tracking-wider text-text-3 font-semibold;
+}
+
+.card-panel {
+  @apply bg-surface border border-border rounded-md p-4 transition-colors;
+}
+
+.btn-terminal {
+  @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-surface-2 hover:bg-active border border-border hover:border-text-3 text-text-1 text-xs font-mono rounded transition-all;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-3.5 py-1.5 bg-pos text-bg font-semibold text-xs font-mono rounded hover:opacity-90 transition-opacity;
+}
