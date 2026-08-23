@@ -11,6 +11,8 @@ def test_default_settings_valid() -> None:
     assert settings.atlas_env in ("dev", "research", "live")
     assert settings.atlas_allow_live is False
     assert settings.atlas_max_leverage <= 1.0
+    assert settings.atlas_api_port == 8001
+    assert settings.next_public_api_url == "http://localhost:8001"
 
 
 def test_settings_rejects_excessive_leverage() -> None:

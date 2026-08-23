@@ -61,9 +61,9 @@ class Settings(BaseSettings):
 
     # API / Web
     atlas_api_host: str = "0.0.0.0"
-    atlas_api_port: int = 8000
+    atlas_api_port: int = 8001
     atlas_session_secret: str = "dev_session_secret_replace_in_production"
-    next_public_api_url: str = "http://localhost:8000"
+    next_public_api_url: str = "http://localhost:8001"
 
     @field_validator("atlas_max_leverage")
     @classmethod

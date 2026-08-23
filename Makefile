@@ -55,7 +55,7 @@ logs:
 	docker compose -f compose.yml logs -f
 
 dev:
-	$(UV) run uvicorn atlas.api.main:app --reload --host 0.0.0.0 --port 8000
+	$(UV) run uvicorn atlas.api.main:app --reload --host 0.0.0.0 --port 8001
 
 migrate:
 	$(UV) run alembic upgrade head

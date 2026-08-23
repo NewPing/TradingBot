@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+
 import polars as pl
 import pytest
 
