@@ -10,6 +10,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -17,7 +18,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -121,3 +122,168 @@ class DataHealth(Base):
     symbol: Mapped[str | None] = mapped_column(String(32), nullable=True)
     severity: Mapped[str] = mapped_column(String(16), nullable=False)  # INFO, WARNING, CRITICAL
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class StrategyVersion(Base):
+    """Versioned trading strategy specification with immutable lineage."""
+
+    __tablename__ = "strategy_versions"
+    __table_args__ = (
+        Index("ix_strategy_versions_family", "family"),
+        Index("ix_strategy_versions_spec_hash", "spec_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    family: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    spec_yaml: Mapped[str] = mapped_column(Text, nullable=False)
+    spec_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    git_sha: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("strategy_versions.id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="RESEARCH")
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+    parent: Mapped[StrategyVersion | None] = relationship(
+        "StrategyVersion", remote_side=[id], backref="children"
+    )
+    runs: Mapped[list[Run]] = relationship("Run", back_populates="strategy_version")
+
+
+class Run(Base):
+    """Backtest, paper, shadow, or live execution run with full reproducibility metadata."""
+
+    __tablename__ = "runs"
+    __table_args__ = (
+        Index("ix_runs_strategy_version_id", "strategy_version_id"),
+        Index("ix_runs_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    strategy_version_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("strategy_versions.id"), nullable=False
+    )
+    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="BACKTEST")
+    start_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    universe_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    data_snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    seed: Mapped[int] = mapped_column(BigInteger, nullable=False, default=42)
+    git_sha: Mapped[str] = mapped_column(String(40), nullable=False)
+    spec_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    cost_model_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    lib_versions: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    summary_metrics: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    strategy_version: Mapped[StrategyVersion] = relationship(
+        "StrategyVersion", back_populates="runs"
+    )
+    metrics: Mapped[list[RunMetric]] = relationship("RunMetric", back_populates="run")
+    equity_curve: Mapped[list[EquityPoint]] = relationship("EquityPoint", back_populates="run")
+    trades: Mapped[list[RunTrade]] = relationship("RunTrade", back_populates="run")
+
+
+class RunMetric(Base):
+    """Key-value performance metric for a specific run."""
+
+    __tablename__ = "run_metrics"
+    __table_args__ = (Index("ix_run_metrics_run_metric", "run_id", "metric_name"),)
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    run_id: Mapped[str] = mapped_column(String(64), ForeignKey("runs.id"), nullable=False)
+    metric_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    value: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    window: Mapped[str] = mapped_column(String(32), nullable=False, default="FULL")
+
+    run: Mapped[Run] = relationship("Run", back_populates="metrics")
+
+
+class EquityPoint(Base):
+    """Point-in-time portfolio equity observation for backtest/live runs."""
+
+    __tablename__ = "equity_curve"
+    __table_args__ = (Index("ix_equity_curve_run_ts", "run_id", "ts"),)
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    run_id: Mapped[str] = mapped_column(String(64), ForeignKey("runs.id"), nullable=False)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    total_equity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    cash: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    per_bucket: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    drawdown: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=Decimal("0"))
+
+    run: Mapped[Run] = relationship("Run", back_populates="equity_curve")
+
+
+class RunTrade(Base):
+    """Completed trade execution record associated with a run."""
+
+    __tablename__ = "run_trades"
+    __table_args__ = (
+        Index("ix_run_trades_run_id", "run_id"),
+        Index("ix_run_trades_symbol", "symbol"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    run_id: Mapped[str] = mapped_column(String(64), ForeignKey("runs.id"), nullable=False)
+    trade_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)  # LONG | SHORT
+    entry_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    exit_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    exit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    quantity: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    pnl_net: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    return_pct: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    fees: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    slippage: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    exit_reason: Mapped[str] = mapped_column(String(64), nullable=False, default="SIGNAL")
+
+    run: Mapped[Run] = relationship("Run", back_populates="trades")
+
+
+class Trial(Base):
+    """Sacred multiple-testing trial record for overfitting and deflated Sharpe accounting."""
+
+    __tablename__ = "trials"
+    __table_args__ = (
+        Index("ix_trials_family", "family"),
+        Index("ix_trials_run_id", "run_id"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    hypothesis_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("runs.id"), nullable=True)
+    family: Mapped[str] = mapped_column(String(64), nullable=False)
+    params: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    metrics: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from atlas import __version__
-from atlas.api.routers import health
+from atlas.api.routers import compare, health, runs, signals, trials, versions
 from atlas.core.config import get_settings
 from atlas.core.logging import get_logger, setup_logging
 
@@ -44,6 +44,11 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(versions.router)
+app.include_router(runs.router)
+app.include_router(compare.router)
+app.include_router(trials.router)
+app.include_router(signals.router)
 
 
 @app.get("/", response_class=HTMLResponse)

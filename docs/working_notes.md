@@ -1,16 +1,16 @@
 # ATLAS — Working Notes
 
 ## CURRENT STATE
-- **Phase**: 2 (Engine & Baselines) — Completed & Verified
-- **Active Branch**: `phase-2/engine-baselines`
-- **Current State**: Phase 2 backtesting engine and baselines complete. HistoricalMarketContext (zero-lookahead gate), SimBroker with strictly enforced $t+1$ fill timing, pessimistic cost model `costs.default_v1` (spread, market-impact slippage, SEC + FINRA regulatory fees, commissions, gap stops), L1 technical indicator library & `WeightedConfidenceAggregator`, 3 position policies (`TopNLongOnlyPolicy`, `ThresholdLongOnlyPolicy`, `TargetWeightPolicy`), volatility-targeted sizing calculator, YAML strategy spec loader with deterministic SHA-256 spec hashing, baseline strategy specifications (`core_trend_v1`, `swing_meanrev_v1`, `buy_hold_spy`, `sixty_forty`, `equal_weight_universe`), deterministic event loop backtest engine, metrics calculator, and CLI runner.
+- **Phase**: 3 (Versioning & Dashboard v1) — Completed & Verified
+- **Active Branch**: `phase-3/versioning-dashboard`
+- **Current State**: Phase 3 complete. Implemented `StrategyVersionRegistry` with immutable spec hashing, lineage graphs, and `SpecImmutabilityError` protection. Implemented `RunRegistry` capturing full reproducibility metadata (`git_sha`, `spec_hash`, `cost_model_hash`, `seed`, `lib_versions`, `data_snapshot_id`). Built `TrialTracker` for sacred multiple-testing budget accounting. Implemented FastAPI routers for `/versions`, `/runs`, `/compare`, `/trials`, and `/signals/explore`. Scaffolded and built Next.js 15 (App Router) Dashboard with Overview, Versions & Lineage, Compare View, Run Detail with Reproducibility Footer, and Signals Explorer with terminal dark theme. All 117 tests passing, strict Mypy clean, Ruff clean, Next.js production build verified.
 
 ## NEXT UP
-1. Human sign-off on Phase 2.
-2. Proceed to Phase 3 (Versioning & Dashboard v1): Strategy version registry with immutability enforcement & lineage, Run registry with reproducibility metadata, trial counter, API endpoints (`/versions`, `/runs`, `/compare`), Next.js dashboard views.
+1. Human sign-off on Phase 3 gate.
+2. Proceed to Phase 4 (Portfolio, Risk & Paper Trading): Bucket ledger with isolated sub-accounts, position sizing, hard limits, kill switches, `AlpacaPaperBroker`, live runner daemon (APScheduler), crash recovery, WebSocket streaming, and alerting.
 
 ## OPEN QUESTIONS
-- None for Phase 2.
+- None for Phase 3.
 
 ## SESSION LOG
 ### 2026-08-23 — Session 3: Phase 2 Engine & Baselines
@@ -35,3 +35,13 @@
 - Updated FastAPI splash page in `atlas/api/main.py` with custom CSS variables, status dot, monospace typography, and hairline borders.
 - Documented Theme & Color System in `docs/ARCHITECTURE.md`, `docs/MASTER_PLAN.md`, and `README.md`.
 - Verified 100% clean check suite: 106 tests passing, strict mypy clean, ruff lint and format clean.
+
+### 2026-08-23 — Session 5: Phase 3 Versioning & Dashboard v1
+- Created Alembic migration `0002_phase3_versioning_runs_trials` and SQLAlchemy models for `strategy_versions`, `runs`, `run_metrics`, `equity_curve`, `run_trades`, and `trials`.
+- Implemented `StrategyVersionRegistry` with immutable spec hashing, lineage graphs, and `SpecImmutabilityError` protection when a spec with existing runs is modified.
+- Implemented `RunRegistry` capturing full environment reproducibility metadata (`git_sha`, `spec_hash`, `cost_model_hash`, `seed`, `lib_versions`, `data_snapshot_id`).
+- Implemented `TrialTracker` for sacred multiple-testing trial counters and weekly testing budget consumption.
+- Implemented FastAPI routers for `/api/v1/versions`, `/api/v1/runs`, `/api/v1/compare`, `/api/v1/trials`, and `/api/v1/signals/explore`.
+- Scaffolded and implemented Next.js 15 (App Router) dashboard with dark developer/terminal theme: Overview (`/`), Versions & Lineage (`/versions`), Run Comparison Matrix (`/compare`), Run Detail with Reproducibility Footer (`/runs/[id]`), and Signals Explorer (`/signals`).
+- Added unit and integration tests covering spec immutability, run registry, multi-run comparisons, and API endpoints (117 total tests passing).
+- Verified full verification suite: `ruff check`, `ruff format --check`, `mypy --strict` on 65 files, and Next.js production build (`npm run build`).

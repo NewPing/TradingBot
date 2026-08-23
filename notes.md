@@ -1,28 +1,25 @@
 # ATLAS — Engineering Notes & Session Log
 
 ## CURRENT STATE
-- **Phase**: 2 (Engine & Baselines) — Completed & Verified
-- **Active Branch**: `phase-2/engine-baselines`
-- **Current Milestone**: Single-threaded backtesting event loop, HistoricalMarketContext zero-lookahead gating, SimBroker with $t+1$ fill timing, pessimistic cost model `costs.default_v1`, L1 technical signal provider library, WeightedConfidenceAggregator, position policies (Top-N, Threshold hysteresis, Target Weight), volatility-targeted position sizing, YAML strategy spec loader with canonical SHA-256 hashing, baseline strategies, metrics module, CLI runner, and lookahead/deterministic replay test suite.
+- **Phase**: 3 (Versioning & Dashboard v1) — Completed & Verified
+- **Active Branch**: `phase-3/versioning-dashboard`
+- **Current Milestone**: Strategy version registry with strict immutability enforcement & ancestral lineage tracking, Run registry with full reproducibility metadata (`git_sha`, `spec_hash`, `cost_model_hash`, `seed`, `lib_versions`, `data_snapshot_id`), TrialTracker for multiple-testing budget accounting, FastAPI routers (`/versions`, `/runs`, `/compare`, `/trials`, `/signals/explore`), and Next.js 15 (App Router) Dashboard (Overview, Versions, Compare, Run Detail, Signals Explorer) in dark developer/terminal theme.
 - **Working Components**:
-  - `atlas.core.context`: `HistoricalMarketContext` preventing any future timestamp lookahead.
-  - `atlas.backtest.costs`: `DefaultCostModelV1` implementing spread, square-root slippage ($k=1.0$), SEC & FINRA regulatory fees, commissions, and cash yield.
-  - `atlas.backtest.broker`: `SimBroker` implementing $t+1$ order execution, stop triggers, whole-share integer quantities, and strict `Money` accounting.
-  - `atlas.signals`: Indicators (SMA, EMA, RSI, MACD, ATR, Bollinger, Momentum, Volatility, 52w pos, Volume Z) and `WeightedConfidenceAggregator`.
-  - `atlas.portfolio`: Sizing calculator and policies (`TopNLongOnlyPolicy`, `ThresholdLongOnlyPolicy`, `TargetWeightPolicy`).
-  - `atlas.strategies`: `StrategySpec` model, loader, validator, SHA-256 hashing, and factory builders.
-  - `strategies/*.yaml`: Baseline specifications (`core_trend_v1`, `swing_meanrev_v1`, `buy_hold_spy`, `sixty_forty`, `equal_weight_universe`).
-  - `atlas.backtest.engine` & `atlas.backtest.metrics`: Backtest event loop, performance & risk metrics calculation, and CLI.
-  - `tests`: 106 unit, hypothesis, and deterministic replay tests passing, 83.2% total coverage, 100% clean strict mypy & ruff.
-- **Blocked / Incomplete**: Awaiting human approval for Phase 2 gate before proceeding to Phase 3 (Versioning & Dashboard v1).
+  - `atlas.strategies.registry`: `StrategyVersionRegistry` enforcing `SpecImmutabilityError` and lineage graphs.
+  - `atlas.backtest.registry`: `RunRegistry` capturing environment reproducibility metadata, metrics, equity points, and multi-run comparisons.
+  - `atlas.research.trials`: `TrialTracker` for multiple testing accounting and weekly trial budget monitoring.
+  - `atlas.api.routers`: Endpoints for `/api/v1/versions`, `/api/v1/runs`, `/api/v1/compare`, `/api/v1/trials`, and `/api/v1/signals/explore`.
+  - `web/`: Next.js 15 App Router dashboard with dark terminal UI tokens.
+  - `tests`: 117 tests passing, strict Mypy clean on 65 files, Ruff lint & format clean, Next.js build clean.
+- **Blocked / Incomplete**: Awaiting human approval for Phase 3 gate before proceeding to Phase 4 (Portfolio, Risk & Paper Trading).
 
 ## NEXT UP
-1. [x] Phase 2 implementation & verification.
-2. [ ] Human sign-off on Phase 2 gate.
-3. [ ] Proceed to Phase 3 (Versioning & Dashboard v1).
+1. [x] Phase 3 implementation & verification.
+2. [ ] Human sign-off on Phase 3 gate.
+3. [ ] Proceed to Phase 4 (Portfolio, Risk & Paper Trading).
 
 ## OPEN QUESTIONS & DECISIONS
-- All Phase 2 specifications implemented per authoritative documentation.
+- Implemented Phase 3 per locked specifications in `docs/MASTER_PLAN.md` and `docs/DATA_CONTRACTS.md`.
 
 ## SESSION LOG
 ### 2026-08-23 — Session 3: Phase 2 Engine & Baselines Complete
@@ -44,3 +41,12 @@
 - Updated FastAPI root HTML/CSS in `atlas/api/main.py` with custom CSS variables and terminal styling.
 - Documented Theme & Color System in `docs/ARCHITECTURE.md`, `docs/MASTER_PLAN.md`, and `README.md`.
 - Full verification passed (`ruff`, `mypy --strict`, `pytest`).
+
+### 2026-08-23 — Session 5: Phase 3 Versioning & Dashboard v1 Complete
+- Created Alembic migration `0002_phase3_versioning_runs_trials` and SQLAlchemy models.
+- Built `StrategyVersionRegistry` enforcing spec immutability and lineage tree tracking.
+- Built `RunRegistry` capturing complete environment reproducibility metadata and multi-run comparisons.
+- Built `TrialTracker` for multiple-testing budget accounting.
+- Implemented FastAPI routers for versions, runs, comparisons, trials, and signals explorer.
+- Scaffolded and verified Next.js 15 App Router web dashboard in dark developer/terminal theme.
+- Added test suite with 117 tests passing, strict Mypy clean, and Ruff format/lint clean.

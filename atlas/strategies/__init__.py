@@ -8,6 +8,7 @@ from atlas.strategies.builder import (
     build_position_policy,
     build_signal_provider,
 )
+from atlas.strategies.registry import StrategyVersionRegistry
 from atlas.strategies.spec import (
     AggregatorConfig,
     CostConfig,
@@ -27,6 +28,7 @@ __all__ = [
     "SignalConfig",
     "StopConfig",
     "StrategySpec",
+    "StrategyVersionRegistry",
     "UniverseFilterConfig",
     "build_aggregator",
     "build_cost_model",
