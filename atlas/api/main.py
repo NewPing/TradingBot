@@ -24,6 +24,22 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info(
         f"Starting ATLAS API v{__version__} [env={settings.atlas_env}, live_allowed={settings.atlas_allow_live}]"
     )
+
+    try:
+        from pathlib import Path
+
+        from atlas.data.db import get_engine, get_session_factory
+        from atlas.data.models import Base
+        from atlas.strategies.registry import StrategyVersionRegistry
+
+        Base.metadata.create_all(get_engine())
+        factory = get_session_factory()
+        with factory() as session:
+            reg = StrategyVersionRegistry(session)
+            reg.sync_directory(Path("strategies"))
+    except Exception as exc:
+        logger.warning(f"Database auto-init/sync notice: {exc}")
+
     yield
     logger.info("Stopping ATLAS API")
 
