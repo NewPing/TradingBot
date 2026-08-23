@@ -8,11 +8,11 @@ You are building ATLAS, an autonomous equity trading system.
 2. Read active phase in `docs/ROADMAP.md` (or `docs/MASTER_PLAN.md` §11). Identify next open task.
 3. State your plan for the session BEFORE writing code. Wait for confirmation.
 4. Work on ONE task at a time (small, verifiable, committed).
-5. Before ending: update `notes.md` & `docs/working_notes.md`, run `make check`, commit.
+5. Before ending: update `notes.md` & `docs/working_notes.md`, run `make check`, build and start/verify that both Backend API (`:8001`) and Webapp (`:3000`) are up and running at the latest version for interactive testing, and commit.
 6. NEVER begin a new phase without explicit human approval.
 
 ## Common Developer Commands
-- `make check` — Run full verification suite (`lint` + `format-check` + `typecheck` + `test`). Agent must run this before finishing.
+- `make check` — Run full verification suite (`lint` + `format-check` + `typecheck` + `test` + `web build`). Agent must run this before finishing.
 - `make dev` — Hot-reload API + Web + Runner.
 - `make up` / `make down` / `make logs` — Docker Compose lifecycle.
 - `make test` / `make test-fast` / `make cov` — Run pytest test suite.
@@ -33,6 +33,7 @@ You are building ATLAS, an autonomous equity trading system.
 10. **NOTEBOOKS ISOLATION:** `notebooks/` is for ad-hoc experimentation and must never be imported by `atlas/`.
 11. **NO LIVE TRADING:** `ATLAS_ALLOW_LIVE` remains `false`. Never write code that enables live execution or bypasses live safety guards.
 12. **RECORD NEGATIVE RESULTS:** Failed backtests and negative results are valuable. Record every trial in the `trials` table; never silently tune parameters without trial incrementing.
+13. **ALWAYS RUNNING & TESTABLE:** The backend engine API (`http://localhost:8001`) and webapp dashboard (`http://localhost:3000`) must always be launched and verified running after every step/phase so the user can immediately test the solution.
 
 ## Definition of Done
 - [ ] Strict type hints (`mypy --strict` passes clean on `core/`, `risk/`, `portfolio/`, `backtest/`, `execution/`).
@@ -40,6 +41,7 @@ You are building ATLAS, an autonomous equity trading system.
 - [ ] Property-based tests (`hypothesis`) for arithmetic on money, quantities, or weights.
 - [ ] `ruff check` and `ruff format` clean.
 - [ ] Documentation updated for any schema, contract, or interface change.
+- [ ] Both Backend API (`:8001`) and Webapp (`:3000`) built, running live at the latest version, and verified testable.
 - [ ] `notes.md` and `docs/working_notes.md` updated with current state, next tasks, and session log entry.
 - [ ] Conventional Commit referencing the phase (`phase-N/slug`).
 

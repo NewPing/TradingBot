@@ -1,4 +1,4 @@
-.PHONY: help install check lint fmt format-check typecheck test test-fast cov up down logs dev migrate migration
+.PHONY: help install check lint fmt format-check typecheck test test-fast cov up down logs dev web-build web-dev migrate migration
 
 PYTHON ?= uv run python
 UV ?= uv
@@ -6,7 +6,7 @@ UV ?= uv
 help:
 	@echo "ATLAS Makefile Commands:"
 	@echo "  make install       - Install dependencies with uv"
-	@echo "  make check         - Run full verification (lint + fmt-check + typecheck + test)"
+	@echo "  make check         - Run full verification (lint + fmt-check + typecheck + test + web-build)"
 	@echo "  make lint          - Run Ruff linter"
 	@echo "  make fmt           - Format code with Ruff"
 	@echo "  make format-check  - Check formatting with Ruff"
@@ -14,15 +14,17 @@ help:
 	@echo "  make test          - Run full pytest test suite"
 	@echo "  make test-fast     - Run fast tests"
 	@echo "  make cov           - Run tests with coverage"
+	@echo "  make web-build     - Build Next.js web application"
+	@echo "  make web-dev       - Start Next.js development server (:3000)"
 	@echo "  make up            - Start Docker infrastructure"
 	@echo "  make down          - Stop Docker infrastructure"
 	@echo "  make logs          - Tail Docker logs"
-	@echo "  make dev           - Run local API development server"
+	@echo "  make dev           - Run local API development server (:8001)"
 
 install:
 	$(UV) sync --all-extras
 
-check: lint format-check typecheck test
+check: lint format-check typecheck test web-build
 
 lint:
 	$(UV) run ruff check atlas tests
@@ -44,6 +46,12 @@ test-fast:
 
 cov:
 	$(UV) run pytest --cov=atlas --cov-report=term-missing --cov-report=html
+
+web-build:
+	npm run --prefix web build
+
+web-dev:
+	npm run --prefix web dev
 
 up:
 	docker compose -f compose.yml up -d
