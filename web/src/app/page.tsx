@@ -3,10 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MetricCard } from "@/components/MetricCard";
+import { InfoTooltip } from "@/components/Tooltip";
 import { api, Run, StrategyVersion, TrialBudget } from "@/lib/api";
-import { Play, RefreshCw, GitCompare, Layers, TrendingUp, ShieldCheck } from "lucide-react";
+import { Play, RefreshCw, Layers, TrendingUp, Sparkles, BookOpen, ArrowRight, ShieldCheck } from "lucide-react";
+import { useTranslation } from "@/i18n";
+import { useWalkthrough } from "@/components/WalkthroughContext";
 
 export default function OverviewPage() {
+  const { t } = useTranslation();
+  const { openWalkthrough } = useWalkthrough();
   const [versions, setVersions] = useState<StrategyVersion[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [budget, setBudget] = useState<TrialBudget | null>(null);
@@ -39,19 +44,63 @@ export default function OverviewPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-bold font-mono tracking-tight text-text-1">SYSTEM OVERVIEW</h1>
+          <h1 className="text-xl font-bold font-mono tracking-tight text-text-1">
+            {t("overview.title")}
+          </h1>
           <p className="text-xs text-text-2 font-mono mt-1">
-            Engine status, active strategies, multiple-testing trial budget, and recent runs.
+            {t("overview.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => openWalkthrough(0)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-pos/10 border border-pos/40 text-pos hover:bg-pos/20 text-xs font-mono font-bold transition-all shadow-sm"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{t("nav.walkthrough_btn")}</span>
+          </button>
           <button onClick={handleSync} className="btn-terminal">
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>SYNC SPECS</span>
+            <span>{t("overview.sync_specs")}</span>
           </button>
           <Link href="/signals" className="btn-primary">
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>EXPLORE SIGNALS</span>
+            <span>{t("overview.explore_signals")}</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Quick Orientation Banner */}
+      <div className="bg-gradient-to-r from-surface to-surface-2 border border-border rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-pos flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              {t("overview.quick_start_title")}
+            </span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-surface border border-border text-text-3">
+              L1–L4
+            </span>
+          </div>
+          <p className="text-[11px] text-text-2">
+            {t("overview.quick_start_desc")}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => openWalkthrough(0)}
+            className="btn-primary py-1 px-3 text-xs"
+          >
+            <span>{t("nav.walkthrough_btn")}</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+          </button>
+          <Link
+            href="/docs"
+            className="btn-terminal py-1 px-3 text-xs flex items-center gap-1.5"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-text-3" />
+            <span>{t("nav.docs")}</span>
           </Link>
         </div>
       </div>
@@ -59,34 +108,34 @@ export default function OverviewPage() {
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          label="STRATEGY VERSIONS"
+          label={t("overview.kpi_versions")}
           value={versions.length}
-          subValue={`${new Set(versions.map((v) => v.family)).size} Unique Families`}
-          tooltip="Unique trading strategy specifications currently registered in the database, versioned with SHA-256 signatures."
-          tooltipTitle="Strategy Versions"
+          subValue={`${new Set(versions.map((v) => v.family)).size} ${t("overview.kpi_versions_sub")}`}
+          tooltip={t("tooltips.strategy_versions_desc")}
+          tooltipTitle={t("tooltips.strategy_versions_title")}
         />
         <MetricCard
-          label="TOTAL RUNS RECORDED"
+          label={t("overview.kpi_runs")}
           value={runs.length}
-          subValue="Zero-lookahead backtests"
-          tooltip="Historical backtests executed with t+1 order fills and full transaction cost simulation."
-          tooltipTitle="Recorded Runs"
+          subValue={t("overview.kpi_runs_sub")}
+          tooltip={t("tooltips.recorded_runs_desc")}
+          tooltipTitle={t("tooltips.recorded_runs_title")}
         />
         <MetricCard
-          label="TRIAL BUDGET CONSUMED"
+          label={t("overview.kpi_budget")}
           value={budget ? `${budget.trials_this_week} / ${budget.weekly_budget}` : "0 / 500"}
-          subValue={budget ? `${budget.budget_remaining} trials remaining this week` : "Budget active"}
+          subValue={budget ? `${budget.budget_remaining} ${t("overview.kpi_budget_remaining")}` : t("common.budget_active")}
           direction={budget && budget.budget_pct_used > 80 ? "neg" : "neutral"}
-          tooltip="Weekly limit on strategy trials (default 500/week) to mathematically prevent p-hacking and overfitting to noise."
-          tooltipTitle="Multiple Testing Budget"
+          tooltip={t("tooltips.trial_budget_desc")}
+          tooltipTitle={t("tooltips.trial_budget_title")}
         />
         <MetricCard
-          label="INVARIANTS STATUS"
-          value="12 / 12 PASS"
-          subValue="Parity, Money, UTC, Lookahead"
+          label={t("overview.kpi_buckets")}
+          value="4 / 4"
+          subValue={t("overview.kpi_buckets_sub")}
           direction="pos"
-          tooltip="Hard mathematical constraints: zero future lookahead, whole-share integer quantities, exact Decimal money (no floats), and UTC timestamps."
-          tooltipTitle="System Invariants"
+          tooltip={t("tooltips.active_buckets_desc")}
+          tooltipTitle={t("tooltips.active_buckets_title")}
         />
       </div>
 
@@ -97,10 +146,16 @@ export default function OverviewPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-pos" />
-              <span className="text-xs font-mono font-semibold text-text-1">STRATEGY VERSIONS</span>
+              <span className="text-xs font-mono font-semibold text-text-1">
+                {t("overview.strategy_families")}
+              </span>
+              <InfoTooltip
+                title={t("tooltips.strategy_versions_title")}
+                content={t("tooltips.strategy_versions_desc")}
+              />
             </div>
             <Link href="/versions" className="text-[11px] font-mono text-text-3 hover:text-pos">
-              VIEW ALL &rarr;
+              {t("overview.view_lineage")} &rarr;
             </Link>
           </div>
 
@@ -108,17 +163,36 @@ export default function OverviewPage() {
             <table className="w-full text-left text-xs font-mono">
               <thead>
                 <tr className="border-b border-border text-text-3 text-[10px] uppercase">
-                  <th className="pb-2">FAMILY</th>
-                  <th className="pb-2">VER</th>
-                  <th className="pb-2">STATUS</th>
-                  <th className="pb-2 text-right">HASH</th>
+                  <th className="pb-2">
+                    <span className="inline-flex items-center">
+                      {t("overview.col_family")}
+                    </span>
+                  </th>
+                  <th className="pb-2">
+                    <span className="inline-flex items-center">
+                      {t("common.version_abbr")}
+                      <InfoTooltip title={t("tooltips.spec_hash_title")} content={t("tooltips.strategy_versions_desc")} />
+                    </span>
+                  </th>
+                  <th className="pb-2">
+                    <span className="inline-flex items-center">
+                      {t("common.status")}
+                      <InfoTooltip title={t("tooltips.parity_title")} content={t("tooltips.parity_desc")} />
+                    </span>
+                  </th>
+                  <th className="pb-2 text-right">
+                    <span className="inline-flex items-center justify-end w-full">
+                      {t("common.hash_abbr")}
+                      <InfoTooltip title={t("tooltips.spec_hash_title")} content={t("tooltips.spec_hash_desc")} />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {versions.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-4 text-center text-text-3">
-                      No strategies registered. Click &quot;SYNC SPECS&quot; to auto-discover YAML files.
+                      {t("common.no_data")}
                     </td>
                   </tr>
                 ) : (
@@ -147,10 +221,16 @@ export default function OverviewPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Play className="w-4 h-4 text-pos" />
-              <span className="text-xs font-mono font-semibold text-text-1">RECENT EXECUTION RUNS</span>
+              <span className="text-xs font-mono font-semibold text-text-1">
+                {t("overview.recent_runs")}
+              </span>
+              <InfoTooltip
+                title={t("tooltips.recorded_runs_title")}
+                content={t("tooltips.recorded_runs_desc")}
+              />
             </div>
             <Link href="/compare" className="text-[11px] font-mono text-text-3 hover:text-pos">
-              COMPARE RUNS &rarr;
+              {t("overview.view_all_runs")} &rarr;
             </Link>
           </div>
 
@@ -158,17 +238,27 @@ export default function OverviewPage() {
             <table className="w-full text-left text-xs font-mono">
               <thead>
                 <tr className="border-b border-border text-text-3 text-[10px] uppercase">
-                  <th className="pb-2">RUN ID</th>
-                  <th className="pb-2">STRATEGY</th>
-                  <th className="pb-2">CAGR</th>
-                  <th className="pb-2 text-right">SHARPE</th>
+                  <th className="pb-2">{t("overview.col_run_id")}</th>
+                  <th className="pb-2">{t("overview.col_strategy")}</th>
+                  <th className="pb-2">
+                    <span className="inline-flex items-center">
+                      {t("overview.col_cagr")}
+                      <InfoTooltip title={t("tooltips.cagr_title")} content={t("tooltips.cagr_desc")} />
+                    </span>
+                  </th>
+                  <th className="pb-2 text-right">
+                    <span className="inline-flex items-center justify-end w-full">
+                      {t("overview.col_sharpe")}
+                      <InfoTooltip title={t("tooltips.sharpe_title")} content={t("tooltips.sharpe_desc")} />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {runs.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-4 text-center text-text-3">
-                      No execution runs recorded yet.
+                      {t("common.no_data")}
                     </td>
                   </tr>
                 ) : (

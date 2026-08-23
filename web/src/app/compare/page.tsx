@@ -5,9 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { api, CompareData, Run } from "@/lib/api";
 import { ChartCanvas } from "@/components/ChartCanvas";
 import { InfoTooltip } from "@/components/Tooltip";
+import { useTranslation } from "@/i18n";
 import { GitCompare, ArrowUpRight, ArrowDownRight, Layers, Play } from "lucide-react";
 
 function CompareContent() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const runIdsParam = searchParams.get("run_ids");
 
@@ -49,73 +51,83 @@ function CompareContent() {
   const metricRows = [
     {
       key: "cagr",
-      label: "CAGR (%)",
+      label: t("compare.cagr_lbl"),
       format: (v: number) => `${(v * 100).toFixed(2)}%`,
       higherIsBetter: true,
-      tooltip: "Compound Annual Growth Rate — Smoothed yearly annualized return rate.",
+      tooltip: t("tooltips.cagr_desc"),
+      tooltipTitle: t("tooltips.cagr_title"),
     },
     {
       key: "sharpe",
-      label: "SHARPE RATIO",
+      label: t("compare.sharpe_lbl"),
       format: (v: number) => v.toFixed(2),
       higherIsBetter: true,
-      tooltip: "Risk-adjusted return measuring excess profit per unit of annualized total volatility (>1.0 is good, >2.0 is great).",
+      tooltip: t("tooltips.sharpe_desc"),
+      tooltipTitle: t("tooltips.sharpe_title"),
     },
     {
       key: "sortino",
-      label: "SORTINO RATIO",
+      label: t("compare.sortino_lbl"),
       format: (v: number) => v.toFixed(2),
       higherIsBetter: true,
-      tooltip: "Downside risk-adjusted return. Only penalizes negative volatility and harmful drops while ignoring upside gains.",
+      tooltip: t("tooltips.sortino_desc"),
+      tooltipTitle: t("tooltips.sortino_title"),
     },
     {
       key: "max_drawdown",
-      label: "MAX DRAWDOWN (%)",
+      label: t("compare.max_dd_lbl"),
       format: (v: number) => `${(v * 100).toFixed(2)}%`,
       higherIsBetter: false,
-      tooltip: "The largest peak-to-trough drop in account equity over the entire simulation.",
+      tooltip: t("tooltips.max_dd_desc"),
+      tooltipTitle: t("tooltips.max_dd_title"),
     },
     {
       key: "calmar",
-      label: "CALMAR RATIO",
+      label: t("compare.calmar_lbl"),
       format: (v: number) => v.toFixed(2),
       higherIsBetter: true,
-      tooltip: "CAGR divided by Max Drawdown. Measures how quickly the strategy recovers from its worst decline.",
+      tooltip: t("tooltips.calmar_desc"),
+      tooltipTitle: t("tooltips.calmar_title"),
     },
     {
       key: "win_rate",
-      label: "WIN RATE (%)",
+      label: t("compare.win_rate_lbl"),
       format: (v: number) => `${(v * 100).toFixed(1)}%`,
       higherIsBetter: true,
-      tooltip: "Percentage of total closed trades that ended with a positive net profit.",
+      tooltip: t("tooltips.win_rate_desc"),
+      tooltipTitle: t("tooltips.win_rate_title"),
     },
     {
       key: "profit_factor",
-      label: "PROFIT FACTOR",
+      label: t("compare.profit_factor_lbl"),
       format: (v: number) => v.toFixed(2),
       higherIsBetter: true,
-      tooltip: "Gross profits divided by gross losses (>1.0 indicates profitability).",
+      tooltip: t("tooltips.profit_factor_desc"),
+      tooltipTitle: t("tooltips.profit_factor_title"),
     },
     {
       key: "expectancy_pct",
-      label: "EXPECTANCY (%)",
+      label: t("compare.expectancy_lbl"),
       format: (v: number) => `${(v * 100).toFixed(2)}%`,
       higherIsBetter: true,
-      tooltip: "Average expected percentage return per trade across all wins and losses.",
+      tooltip: t("tooltips.expectancy_desc"),
+      tooltipTitle: t("tooltips.expectancy_title"),
     },
     {
       key: "total_trades",
-      label: "TOTAL TRADES",
+      label: t("compare.total_trades_lbl"),
       format: (v: number) => Math.round(v).toString(),
       higherIsBetter: null,
-      tooltip: "Total count of round-trip trade executions recorded in the backtest.",
+      tooltip: t("tooltips.recorded_runs_desc"),
+      tooltipTitle: t("compare.total_trades_lbl"),
     },
     {
       key: "turnover_annual",
-      label: "ANNUAL TURNOVER",
+      label: t("compare.turnover_lbl"),
       format: (v: number) => `${v.toFixed(1)}x`,
       higherIsBetter: null,
-      tooltip: "How many times the total portfolio capital was turned over in trades per year.",
+      tooltip: t("tooltips.turnover_desc"),
+      tooltipTitle: t("tooltips.turnover_title"),
     },
   ];
 
@@ -125,20 +137,20 @@ function CompareContent() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-xl font-bold font-mono tracking-tight text-text-1">
-            RUN COMPARISON MATRIX
+            {t("compare.title")}
           </h1>
           <p className="text-xs text-text-2 font-mono mt-1">
-            Overlaid equity curves, drawdown underwater plots, and side-by-side performance metrics.
+            {t("compare.subtitle")}
           </p>
         </div>
       </div>
 
       {/* Run Selector Chips */}
       <div className="card-panel space-y-3">
-        <div className="terminal-label">SELECT RUNS TO COMPARE</div>
+        <div className="terminal-label">{t("compare.select_runs")}</div>
         <div className="flex flex-wrap gap-2">
           {availableRuns.length === 0 ? (
-            <div className="text-xs font-mono text-text-3">No runs found in database.</div>
+            <div className="text-xs font-mono text-text-3">{t("compare.no_runs_found")}</div>
           ) : (
             availableRuns.map((r) => {
               const active = selectedRunIds.includes(r.id);
@@ -164,11 +176,11 @@ function CompareContent() {
 
       {loading ? (
         <div className="py-12 text-center text-text-3 font-mono text-xs">
-          Computing comparison metrics and series...
+          {t("compare.loading_comparison")}
         </div>
       ) : !compareData || compareData.runs.length === 0 ? (
         <div className="card-panel py-12 text-center text-text-3 font-mono text-xs">
-          Select at least one execution run above to inspect metrics.
+          {t("compare.select_run_prompt")}
         </div>
       ) : (
         <>
@@ -188,19 +200,19 @@ function CompareContent() {
                       {r.strategy_version_id}
                     </span>
                     <span className="text-[11px] font-mono text-text-3">
-                      SNAPSHOT: {r.data_snapshot_id}
+                      {t("compare.snapshot_lbl")}: {r.data_snapshot_id}
                     </span>
                   </div>
                   <ChartCanvas
                     data={chartData}
-                    label={`${r.strategy_version_id} Equity ($)`}
+                    label={`${r.strategy_version_id} ${t("compare.equity_curve_label")}`}
                     height={180}
                     color={color}
                     formatValue={(v) => `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                   />
                   <ChartCanvas
                     data={ddData}
-                    label={`${r.strategy_version_id} Drawdown (%)`}
+                    label={`${r.strategy_version_id} ${t("compare.drawdown_curve_label")}`}
                     height={120}
                     color="#ef4444"
                     isDrawdown={true}
@@ -213,12 +225,12 @@ function CompareContent() {
 
           {/* Metrics Diff Table */}
           <div className="card-panel space-y-3">
-            <div className="terminal-label">SIDE-BY-SIDE METRICS DIFF</div>
+            <div className="terminal-label">{t("compare.side_by_side_diff")}</div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead>
                   <tr className="border-b border-border text-text-3 text-[10px] uppercase">
-                    <th className="pb-3 pl-2">METRIC</th>
+                    <th className="pb-3 pl-2">{t("compare.metric_name")}</th>
                     {compareData.runs.map((r) => (
                       <th key={r.id} className="pb-3 text-right pr-4">
                         {r.strategy_version_id}
@@ -235,7 +247,7 @@ function CompareContent() {
                       <td className="py-2.5 pl-2 font-medium text-text-2">
                         <span className="inline-flex items-center">
                           {row.label}
-                          <InfoTooltip content={row.tooltip} title={row.label} />
+                          <InfoTooltip content={row.tooltip} title={row.tooltipTitle || row.label} />
                         </span>
                       </td>
                       {compareData.runs.map((r) => {
@@ -261,12 +273,12 @@ function CompareContent() {
 
           {/* Reproducibility Comparison */}
           <div className="card-panel space-y-3">
-            <div className="terminal-label">REPRODUCIBILITY METADATA</div>
+            <div className="terminal-label">{t("compare.reproducibility_meta")}</div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead>
                   <tr className="border-b border-border text-text-3 text-[10px] uppercase">
-                    <th className="pb-2">FIELD</th>
+                    <th className="pb-2">{t("common.field_lbl")}</th>
                     {compareData.runs.map((r) => (
                       <th key={r.id} className="pb-2 text-right pr-4">
                         {r.strategy_version_id}
@@ -276,7 +288,12 @@ function CompareContent() {
                 </thead>
                 <tbody className="divide-y divide-border-subtle text-text-3 text-[11px]">
                   <tr>
-                    <td className="py-2">GIT SHA</td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center">
+                        {t("compare.git_sha_lbl")}
+                        <InfoTooltip title={t("tooltips.git_sha_title")} content={t("tooltips.git_sha_desc")} />
+                      </span>
+                    </td>
                     {compareData.runs.map((r) => (
                       <td key={r.id} className="py-2 text-right pr-4 text-text-2">
                         {r.git_sha}
@@ -284,7 +301,12 @@ function CompareContent() {
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-2">SPEC HASH</td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center">
+                        {t("compare.spec_hash_lbl")}
+                        <InfoTooltip title={t("tooltips.spec_hash_title")} content={t("tooltips.spec_hash_desc")} />
+                      </span>
+                    </td>
                     {compareData.runs.map((r) => (
                       <td key={r.id} className="py-2 text-right pr-4 text-text-2">
                         {r.spec_hash}
@@ -292,7 +314,12 @@ function CompareContent() {
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-2">COST MODEL</td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center">
+                        {t("compare.cost_model_lbl")}
+                        <InfoTooltip title={t("tooltips.cost_model_title")} content={t("tooltips.cost_model_desc")} />
+                      </span>
+                    </td>
                     {compareData.runs.map((r) => (
                       <td key={r.id} className="py-2 text-right pr-4 text-text-2">
                         {r.cost_model_hash}
@@ -300,7 +327,12 @@ function CompareContent() {
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-2">DATA SNAPSHOT</td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center">
+                        {t("compare.data_snapshot_lbl")}
+                        <InfoTooltip title={t("tooltips.data_snapshot_title")} content={t("tooltips.data_snapshot_desc")} />
+                      </span>
+                    </td>
                     {compareData.runs.map((r) => (
                       <td key={r.id} className="py-2 text-right pr-4 text-text-2">
                         {r.data_snapshot_id}
@@ -308,7 +340,12 @@ function CompareContent() {
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-2">RANDOM SEED</td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center">
+                        {t("compare.random_seed_lbl")}
+                        <InfoTooltip title={t("tooltips.random_seed_title")} content={t("tooltips.random_seed_desc")} />
+                      </span>
+                    </td>
                     {compareData.runs.map((r) => (
                       <td key={r.id} className="py-2 text-right pr-4 text-text-2">
                         {r.seed}
@@ -326,8 +363,9 @@ function CompareContent() {
 }
 
 export default function ComparePage() {
+  const { t } = useTranslation();
   return (
-    <Suspense fallback={<div className="p-8 text-xs font-mono text-text-3">Loading comparison...</div>}>
+    <Suspense fallback={<div className="p-8 text-xs font-mono text-text-3">{t("compare.loading_comparison")}</div>}>
       <CompareContent />
     </Suspense>
   );

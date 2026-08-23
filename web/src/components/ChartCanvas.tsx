@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslation } from "@/i18n";
 
 interface Point {
   ts: string;
@@ -18,12 +19,14 @@ interface ChartCanvasProps {
 
 export function ChartCanvas({
   data,
-  label = "Series",
+  label,
   height = 200,
   color = "#22c55e",
   formatValue = (v) => v.toFixed(2),
   isDrawdown = false,
 }: ChartCanvasProps) {
+  const { t } = useTranslation();
+  const displayLabel = label ?? t("chart.series");
   const { pathD, minVal, maxVal, firstVal, lastVal, pctChange } = useMemo(() => {
     if (!data || data.length === 0) {
       return { pathD: "", minVal: 0, maxVal: 0, firstVal: 0, lastVal: 0, pctChange: 0 };
@@ -67,7 +70,7 @@ export function ChartCanvas({
         style={{ height }}
         className="w-full flex items-center justify-center border border-dashed border-border rounded bg-surface-2 text-text-3 text-xs font-mono"
       >
-        NO TIME-SERIES DATA AVAILABLE
+        {t("common.no_data")}
       </div>
     );
   }
@@ -76,7 +79,7 @@ export function ChartCanvas({
     <div className="w-full bg-surface border border-border rounded p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono font-medium text-text-1">{label}</span>
+          <span className="text-xs font-mono font-medium text-text-1">{displayLabel}</span>
           {!isDrawdown && (
             <span
               className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
@@ -143,9 +146,9 @@ export function ChartCanvas({
       </div>
 
       <div className="flex items-center justify-between text-[10px] font-mono text-text-3 mt-1">
-        <span>MIN: {formatValue(minVal)}</span>
-        <span>{data.length} BARS</span>
-        <span>MAX: {formatValue(maxVal)}</span>
+        <span>{t("chart.min")}: {formatValue(minVal)}</span>
+        <span>{data.length} {t("chart.bars")}</span>
+        <span>{t("chart.max")}: {formatValue(maxVal)}</span>
       </div>
     </div>
   );

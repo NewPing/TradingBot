@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
+import { LanguageProvider } from "@/i18n";
+import { WalkthroughProvider } from "@/components/WalkthroughContext";
 
 export const metadata: Metadata = {
   title: "ATLAS — Autonomous Trading & Learning Analysis System",
@@ -15,10 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-bg text-text-1 antialiased min-h-screen flex">
-        <Navigation />
-        <main className="flex-1 min-w-0 p-8 overflow-y-auto max-h-screen">
-          <div className="max-w-7xl mx-auto space-y-8">{children}</div>
-        </main>
+        <LanguageProvider>
+          <WalkthroughProvider>
+            <Navigation />
+            <main className="flex-1 min-w-0 p-8 overflow-y-auto max-h-screen">
+              <div className="max-w-7xl mx-auto space-y-8">{children}</div>
+            </main>
+          </WalkthroughProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

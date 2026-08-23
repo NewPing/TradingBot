@@ -5,9 +5,11 @@ import { api, SignalExploreData } from "@/lib/api";
 import { ChartCanvas } from "@/components/ChartCanvas";
 import { MetricCard } from "@/components/MetricCard";
 import { InfoTooltip } from "@/components/Tooltip";
+import { useTranslation } from "@/i18n";
 import { TrendingUp, Search, Sliders, Activity } from "lucide-react";
 
 export default function SignalsExplorerPage() {
+  const { t } = useTranslation();
   const [symbol, setSymbol] = useState("SPY");
   const [inputVal, setInputVal] = useState("SPY");
   const [data, setData] = useState<SignalExploreData | null>(null);
@@ -61,11 +63,20 @@ export default function SignalsExplorerPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-bold font-mono tracking-tight text-text-1">
-            SIGNALS EXPLORER
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold font-mono tracking-tight text-text-1">
+              {t("signals.title")}
+            </h1>
+            <span className="badge-terminal bg-surface-2 text-pos border border-border">
+              L1
+            </span>
+            <InfoTooltip
+              title="L1 Technical Signals"
+              content="Layer 1 calculates fast price momentum, trend-following filters, and volatility oscillators on historical OHLCV bars with strict zero-lookahead."
+            />
+          </div>
           <p className="text-xs text-text-2 font-mono mt-1">
-            Point-in-time price analysis, multi-layer feature calculation, and indicator inspection.
+            {t("signals.subtitle")}
           </p>
         </div>
 
@@ -76,13 +87,13 @@ export default function SignalsExplorerPage() {
               type="text"
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value.toUpperCase())}
-              placeholder="SYMBOL (e.g. SPY)"
+              placeholder={t("signals.search_placeholder")}
               className="bg-surface-2 border border-border focus:border-pos focus:outline-none rounded px-3 py-1.5 text-xs font-mono text-text-1 uppercase w-36"
             />
           </div>
           <button type="submit" className="btn-primary">
             <Search className="w-3.5 h-3.5" />
-            <span>QUERY</span>
+            <span>{t("common.search")}</span>
           </button>
         </form>
       </div>
@@ -90,35 +101,35 @@ export default function SignalsExplorerPage() {
       {/* Symbol Quick Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MetricCard
-          label={`CLOSE (${symbol})`}
+          label={`${t("signals.close_label")} (${symbol})`}
           value={`$${latestClose.toFixed(2)}`}
           subValue={latestPoint ? new Date(latestPoint.ts).toLocaleDateString() : ""}
-          tooltip={`Latest observed adjusted closing price for ticker ${symbol}.`}
-          tooltipTitle="Closing Price"
+          tooltip={t("tooltips.close_price_desc")}
+          tooltipTitle={t("tooltips.close_price_title")}
         />
         <MetricCard
-          label="RSI (14)"
+          label={t("signals.rsi_label")}
           value={latestRsi.toFixed(1)}
           direction={latestRsi < 30 ? "pos" : latestRsi > 70 ? "neg" : "neutral"}
-          subValue={latestRsi < 30 ? "Oversold (<30)" : latestRsi > 70 ? "Overbought (>70)" : "Neutral"}
-          tooltip="Relative Strength Index (14-day): Measures momentum on a 0–100 scale. Below 30 means heavily sold (bargain bounce zone), above 70 means overbought (stretched)."
-          tooltipTitle="RSI (Relative Strength Index)"
+          subValue={latestRsi < 30 ? t("signals.oversold_sub") : latestRsi > 70 ? t("signals.overbought_sub") : t("signals.neutral_sub")}
+          tooltip={t("tooltips.rsi_desc")}
+          tooltipTitle={t("tooltips.rsi_title")}
         />
         <MetricCard
-          label="200-DAY SMA"
+          label={t("signals.sma200_label")}
           value={`$${latestSma200.toFixed(2)}`}
           direction={latestClose > latestSma200 ? "pos" : "neg"}
-          subValue={latestClose > latestSma200 ? "Above 200 SMA (Bullish)" : "Below 200 SMA"}
-          tooltip="200-Day Simple Moving Average: The benchmark long-term trend line (~10 months). Stock trading above this line is in an overall uptrend."
-          tooltipTitle="200-Day Moving Average"
+          subValue={latestClose > latestSma200 ? t("signals.above_sma_sub") : t("signals.below_sma_sub")}
+          tooltip={t("tooltips.sma200_desc")}
+          tooltipTitle={t("tooltips.sma200_title")}
         />
         <MetricCard
-          label="MACD OSCILLATOR"
+          label={t("signals.macd_label")}
           value={latestMacd.toFixed(2)}
           direction={latestMacd > 0 ? "pos" : "neg"}
-          subValue={latestMacd > 0 ? "Positive Momentum" : "Negative Momentum"}
-          tooltip="Moving Average Convergence Divergence: Compares 12-day and 26-day price trends. Positive values indicate accelerating upward price momentum."
-          tooltipTitle="MACD Momentum"
+          subValue={latestMacd > 0 ? t("signals.pos_momentum_sub") : t("signals.neg_momentum_sub")}
+          tooltip={t("tooltips.macd_desc")}
+          tooltipTitle={t("tooltips.macd_title")}
         />
       </div>
 
@@ -126,7 +137,7 @@ export default function SignalsExplorerPage() {
       <div className="space-y-4">
         <ChartCanvas
           data={priceChartData}
-          label={`${symbol} Daily Close Price ($)`}
+          label={`${symbol} ${t("signals.daily_close_chart")}`}
           height={260}
           color="#22c55e"
           formatValue={(v) => `$${v.toFixed(2)}`}
@@ -139,7 +150,7 @@ export default function SignalsExplorerPage() {
           <div className="flex items-center gap-2">
             <Sliders className="w-4 h-4 text-pos" />
             <span className="text-xs font-mono font-semibold text-text-1">
-              INDICATOR SUB-PANEL: {activeIndicator.toUpperCase()}
+              {t("signals.indicator_subpanel")}: {activeIndicator.toUpperCase()}
             </span>
           </div>
 

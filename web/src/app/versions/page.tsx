@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, LineageResponse, StrategyVersion } from "@/lib/api";
 import { InfoTooltip } from "@/components/Tooltip";
+import { useTranslation } from "@/i18n";
 import {
   Layers,
   GitBranch,
@@ -19,6 +20,7 @@ import {
 
 export default function VersionsPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [versions, setVersions] = useState<StrategyVersion[]>([]);
   const [selectedFamily, setSelectedFamily] = useState<string>("ALL");
   const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
@@ -61,7 +63,7 @@ export default function VersionsPage() {
     if (runIds.length > 0) {
       router.push(`/compare?run_ids=${runIds.join(",")}`);
     } else {
-      alert("No backtest runs found for selected versions. Please run backtests first.");
+      alert(t("versions.no_runs_alert"));
     }
   };
 
@@ -70,18 +72,19 @@ export default function VersionsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-bold font-mono tracking-tight text-text-1">
-            STRATEGY VERSION REGISTRY
+          <h1 className="text-xl font-bold font-mono tracking-tight text-text-1 flex items-center gap-2">
+            <Layers className="w-5 h-5 text-pos" />
+            {t("versions.title")}
           </h1>
           <p className="text-xs text-text-2 font-mono mt-1">
-            Immutable specifications, SHA-256 cryptographic signatures, and ancestral lineage trees.
+            {t("versions.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {selectedVersions.length >= 2 && (
             <button onClick={handleCompareSelected} className="btn-primary">
               <GitCompare className="w-3.5 h-3.5" />
-              <span>COMPARE ({selectedVersions.length})</span>
+              <span>{t("versions.compare_versions")} ({selectedVersions.length})</span>
             </button>
           )}
           <button
@@ -92,9 +95,23 @@ export default function VersionsPage() {
             className="btn-terminal"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>SYNC YAML</span>
+            <span>{t("versions.sync_specs")}</span>
           </button>
         </div>
+      </div>
+
+      {/* Immutability & Scientific Lineage Banner */}
+      <div className="p-3 bg-surface border border-border rounded text-xs font-mono text-text-2 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="w-4 h-4 text-pos shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold text-text-1">{t("versions.spec_immutability_notice")}: </span>
+            <span>{t("docs.immutability_rule_desc")}</span>
+          </div>
+        </div>
+        <Link href="/docs" className="text-pos hover:underline text-[11px] shrink-0 font-bold">
+          {t("nav.docs")} &rarr;
+        </Link>
       </div>
 
       {/* Family Filter Tabs */}
@@ -109,7 +126,7 @@ export default function VersionsPage() {
                 : "text-text-3 hover:text-text-1 hover:bg-surface border border-transparent"
             }`}
           >
-            {fam}
+            {fam === "ALL" ? t("versions.filter_all") : fam}
           </button>
         ))}
       </div>
@@ -123,43 +140,43 @@ export default function VersionsPage() {
                 <th className="pb-3 pl-2 w-8"></th>
                 <th className="pb-3">
                   <span className="inline-flex items-center">
-                    VERSION ID
+                    {t("versions.col_version_id")}
                     <InfoTooltip
-                      title="Strategy Version ID"
-                      content="Unique family identifier combined with semantic versioning (e.g. core_trend_1.0.0)."
+                      title={t("tooltips.strategy_versions_title")}
+                      content={t("tooltips.strategy_versions_desc")}
                     />
                   </span>
                 </th>
-                <th className="pb-3">FAMILY</th>
+                <th className="pb-3">{t("common.family_lbl")}</th>
                 <th className="pb-3">
                   <span className="inline-flex items-center">
-                    STATUS
+                    {t("common.status")}
                     <InfoTooltip
-                      title="Promotion Stage"
-                      content="RESEARCH (Fitting) -> CANDIDATE (Passed statistical gates) -> PAPER (90-day forward test) -> SHADOW ($0 live order comparison) -> LIVE (Real money)."
-                    />
-                  </span>
-                </th>
-                <th className="pb-3">
-                  <span className="inline-flex items-center">
-                    PARENT LINEAGE
-                    <InfoTooltip
-                      title="Ancestral Lineage"
-                      content="The parent strategy version this version was derived or tuned from."
+                      title={t("tooltips.parity_title")}
+                      content={t("tooltips.parity_desc")}
                     />
                   </span>
                 </th>
                 <th className="pb-3">
                   <span className="inline-flex items-center">
-                    SPEC HASH
+                    {t("versions.col_parent_lineage")}
                     <InfoTooltip
-                      title="SHA-256 Spec Hash"
-                      content="Cryptographic signature of the exact YAML parameters. If parameters change, the hash changes and immutability rules prevent silent overwriting."
+                      title={t("versions.parent_version")}
+                      content={t("versions.lineage_tree")}
                     />
                   </span>
                 </th>
-                <th className="pb-3">CREATED</th>
-                <th className="pb-3 text-right pr-2">ACTIONS</th>
+                <th className="pb-3">
+                  <span className="inline-flex items-center">
+                    {t("versions.spec_hash")}
+                    <InfoTooltip
+                      title={t("tooltips.spec_hash_title")}
+                      content={t("tooltips.spec_hash_desc")}
+                    />
+                  </span>
+                </th>
+                <th className="pb-3">{t("versions.created_at")}</th>
+                <th className="pb-3 text-right pr-2">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -167,8 +184,8 @@ export default function VersionsPage() {
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-text-3">
                     {loading
-                      ? "Loading version registry..."
-                      : "No strategy versions registered for this filter."}
+                      ? t("versions.loading_registry")
+                      : t("versions.no_versions_found")}
                   </td>
                 </tr>
               ) : (
@@ -207,7 +224,7 @@ export default function VersionsPage() {
                             {v.parent_id}
                           </span>
                         ) : (
-                          "— (Root)"
+                          t("versions.root_spec")
                         )}
                       </td>
                       <td className="py-3 text-text-3 text-[11px]">
@@ -222,7 +239,7 @@ export default function VersionsPage() {
                           className="btn-terminal py-1 px-2 text-[11px]"
                         >
                           <GitBranch className="w-3 h-3" />
-                          <span>LINEAGE</span>
+                          <span>{t("versions.lineage_btn")}</span>
                         </button>
                       </td>
                     </tr>
@@ -241,23 +258,23 @@ export default function VersionsPage() {
             <div className="flex items-center gap-2">
               <GitBranch className="w-4 h-4 text-pos" />
               <span className="text-xs font-mono font-semibold text-text-1">
-                LINEAGE TREE: {activeLineage.current.id}
+                {t("versions.lineage_tree_for")}: {activeLineage.current.id}
               </span>
             </div>
             <button
               onClick={() => setActiveLineage(null)}
               className="text-xs font-mono text-text-3 hover:text-text-1"
             >
-              ✕ CLOSE
+              ✕ {t("common.close_btn")}
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
             {/* Ancestors */}
             <div className="bg-surface-2 border border-border rounded p-3 space-y-2">
-              <div className="terminal-label">ANCESTORS (PARENTS)</div>
+              <div className="terminal-label">{t("versions.ancestors_title")}</div>
               {activeLineage.ancestors.length === 0 ? (
-                <div className="text-xs font-mono text-text-3">Root specification (No parent).</div>
+                <div className="text-xs font-mono text-text-3">{t("versions.root_no_parent")}</div>
               ) : (
                 <div className="space-y-1.5">
                   {activeLineage.ancestors.map((anc) => (
@@ -276,12 +293,12 @@ export default function VersionsPage() {
 
             {/* Current Target */}
             <div className="bg-active border border-pos rounded p-3 space-y-2">
-              <div className="terminal-label text-pos">CURRENT VERSION</div>
+              <div className="terminal-label text-pos">{t("versions.current_version_title")}</div>
               <div className="text-xs font-mono font-bold text-text-1">
                 {activeLineage.current.id}
               </div>
               <div className="text-[11px] font-mono text-text-3">
-                Spec Hash: {activeLineage.current.spec_hash.substring(0, 12)}...
+                {t("versions.spec_hash_lbl")}: {activeLineage.current.spec_hash.substring(0, 12)}...
               </div>
               <span className="terminal-badge bg-surface border-border text-pos">
                 {activeLineage.current.status}
@@ -290,10 +307,10 @@ export default function VersionsPage() {
 
             {/* Direct Children */}
             <div className="bg-surface-2 border border-border rounded p-3 space-y-2">
-              <div className="terminal-label">CHILDREN / VARIANTS</div>
+              <div className="terminal-label">{t("versions.children_title")}</div>
               {activeLineage.children.length === 0 ? (
                 <div className="text-xs font-mono text-text-3">
-                  No derived versions branched from this spec yet.
+                  {t("versions.no_children_variants")}
                 </div>
               ) : (
                 <div className="space-y-1.5">
